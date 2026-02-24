@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Maze Architect</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <h1 class="brand">Maze Architect</h1>
+            
+            <!-- Hero Section (Simple) -->
+            <div class="section hero">
+                <div class="row">
+                    <div class="col">
+                        <label>Columns (X)</label>
+                        <input type="number" id="inp-cols" value="20" min="5" max="100">
+                    </div>
+                    <div class="col">
+                        <label>Rows (Y)</label>
+                        <input type="number" id="inp-rows" value="20" min="5" max="100">
+                    </div>
+                </div>
+                <button id="btn-generate" class="btn-primary">GENERATE MAZE</button>
+                <div class="status-bar" id="status-text">Ready</div>
+            </div>
+
+            <!-- Advanced Section -->
+            <details class="advanced-panel" open>
+                <summary>Advanced Configuration</summary>
+                
+                <div class="section">
+                    <label>Algorithm</label>
+                    <select id="sel-algo">
+                        <option value="dfs" selected>Recursive Backtracker (River-like)</option>
+                        <option value="huntkill">Hunt & Kill (Winding, prevents stack overflow)</option>
+                        <option value="prims">Randomized Prim's (Short branches, electric)</option>
+                        <option value="kruskal">Randomized Kruskal's (Uniform, puzzle-like)</option>
+                        <option value="aldous">Aldous-Broder (Random Walk, Slow)</option>
+                        <option value="wilson">Wilson's (Uniform Loop-Erased, Slow)</option>
+                        <option value="division">Recursive Division (Blocky rooms)</option>
+                        <option value="eller">Eller's (Infinite scrolling logic)</option>
+                        <option value="sidewinder">Sidewinder (Wind-swept look)</option>
+                        <option value="binary">Binary Tree (Diagonal bias)</option>
+                    </select>
+                    <p class="description" id="algo-desc">Natural looking maze with long corridors.</p>
+                </div>
+
+                <div class="section">
+                    <label>Speed: <span id="lbl-speed">Fast</span></label>
+                    <input type="range" id="inp-speed" min="1" max="100" value="90">
+                </div>
+
+                <!-- Custom Path Tool -->
+                <div class="section tool-box">
+                    <label>Custom Solution Path</label>
+                    <div class="btn-group">
+                        <button id="btn-tool-pencil" class="btn-tool" title="Draw Path">✏️ Draw</button>
+                        <button id="btn-tool-eraser" class="btn-tool" title="Erase Path">❌ Erase</button>
+                        <button id="btn-tool-clear" class="btn-tool" title="Clear Path">🗑️ Clear</button>
+                    </div>
+                    <p class="description warning hidden" id="path-warning">
+                        Drawing a path disables incompatible algorithms (Eller's, Division, etc).
+                    </p>
+                </div>
+
+                <!-- Post Processing -->
+                <div class="section">
+                    <label>Erase Random Walls (Loops)</label>
+                    <input type="range" id="inp-loops" min="0" max="50" value="0">
+                    <span id="lbl-loops">0%</span>
+                </div>
+
+                <!-- Export -->
+                <div class="section">
+                    <label>Export Options</label>
+                    <div class="checkbox-row">
+                        <input type="checkbox" id="chk-solve"> <label for="chk-solve">Show Solution</label>
+                    </div>
+                    <div class="row">
+                        <select id="sel-join">
+                            <option value="miter">Sharp Corners</option>
+                            <option value="round">Round Corners</option>
+                            <option value="bevel">Cut Corners</option>
+                        </select>
+                    </div>
+                    <div class="btn-group">
+                        <button id="btn-exp-svg">SVG (Vector)</button>
+                        <button id="btn-exp-png">PNG (Bitmap)</button>
+                    </div>
+                </div>
+
+                <div class="section control-playback">
+                     <button id="btn-pause" disabled>Pause / Resume</button>
+                </div>
+            </details>
+        </aside>
+
+        <!-- Display Area -->
+        <main class="viewport" id="viewport">
+            <canvas id="canvas"></canvas>
+            <div id="toast-container"></div>
+        </main>
+    </div>
+
+    <!-- Scripts -->
+    <script type="module" src="js/main.js"></script>
+</body>
+</html>
