@@ -3,6 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Dummy Favicon to prevent 404 in console -->
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🧩</text></svg>">
     <title>Maze Architect</title>
     <link rel="stylesheet" href="css/style.css">
 </head>
@@ -13,24 +15,26 @@
         <aside class="sidebar">
             <h1 class="brand">Maze Architect</h1>
             
-            <!-- Hero Section (Simple) -->
+            <!-- Hero Section -->
             <div class="section hero">
-                <div class="row">
+                <div class="row" style="align-items: center;">
                     <div class="col">
                         <label>Columns (X)</label>
-                        <input type="number" id="inp-cols" value="20" min="5" max="100">
+                        <input type="number" id="inp-cols" value="20" min="2" max="200">
                     </div>
+                    <!-- Chain Link Button -->
+                    <button id="btn-lock-ratio" class="btn-icon" title="Lock Aspect Ratio">🔗</button>
                     <div class="col">
                         <label>Rows (Y)</label>
-                        <input type="number" id="inp-rows" value="20" min="5" max="100">
+                        <input type="number" id="inp-rows" value="20" min="2" max="200">
                     </div>
                 </div>
                 <button id="btn-generate" class="btn-primary">GENERATE MAZE</button>
                 <div class="status-bar" id="status-text">Ready</div>
             </div>
 
-            <!-- Advanced Section -->
-            <details class="advanced-panel" open>
+            <!-- Advanced Section (Collapsed by default) -->
+            <details class="advanced-panel">
                 <summary>Advanced Configuration</summary>
                 
                 <div class="section">
@@ -47,17 +51,18 @@
                         <option value="sidewinder">Sidewinder (Wind-swept look)</option>
                         <option value="binary">Binary Tree (Diagonal bias)</option>
                     </select>
-                    <p class="description" id="algo-desc">Natural looking maze with long corridors.</p>
                 </div>
 
                 <div class="section">
-                    <label>Speed: <span id="lbl-speed">Fast</span></label>
-                    <input type="range" id="inp-speed" min="1" max="100" value="90">
+                    <label>Generation Speed: <span id="lbl-speed">Fast</span></label>
+                    <input type="range" id="inp-speed" min="1" max="100" value="95">
                 </div>
+
+                <hr class="divider">
 
                 <!-- Custom Path Tool -->
                 <div class="section tool-box">
-                    <label>Custom Solution Path</label>
+                    <label>Pre-Draw Custom Path</label>
                     <div class="btn-group">
                         <button id="btn-tool-pencil" class="btn-tool" title="Draw Path">✏️ Draw</button>
                         <button id="btn-tool-eraser" class="btn-tool" title="Erase Path">❌ Erase</button>
@@ -68,35 +73,44 @@
                     </p>
                 </div>
 
+                <hr class="divider">
+
                 <!-- Post Processing -->
                 <div class="section">
-                    <label>Erase Random Walls (Loops)</label>
+                    <label>Erase Walls (Create Loops)</label>
                     <input type="range" id="inp-loops" min="0" max="50" value="0">
-                    <span id="lbl-loops">0%</span>
+                    <p class="description">Erases: <span id="lbl-loops">0%</span> of internal walls.</p>
                 </div>
 
-                <!-- Export -->
+                <hr class="divider">
+
+                <!-- Solution & Export -->
                 <div class="section">
-                    <label>Export Options</label>
-                    <div class="checkbox-row">
-                        <input type="checkbox" id="chk-solve"> <label for="chk-solve">Show Solution</label>
+                    <label>Solution & Export Options</label>
+                    
+                    <div class="checkbox-row" style="margin: 10px 0;">
+                        <input type="checkbox" id="chk-solve"> 
+                        <label for="chk-solve" style="cursor:pointer; color: var(--primary);">
+                            Solve Maze (Drag 🐒 & 🍌)
+                        </label>
                     </div>
+
                     <div class="row">
-                        <select id="sel-join">
-                            <option value="miter">Sharp Corners</option>
-                            <option value="round">Round Corners</option>
-                            <option value="bevel">Cut Corners</option>
-                        </select>
+                        <div class="col">
+                            <label>Solution Line Corners</label>
+                            <select id="sel-join">
+                                <option value="miter">Sharp (Miter)</option>
+                                <option value="round" selected>Round</option>
+                                <option value="bevel">Cut (Bevel)</option>
+                            </select>
+                        </div>
                     </div>
-                    <div class="btn-group">
-                        <button id="btn-exp-svg">SVG (Vector)</button>
-                        <button id="btn-exp-png">PNG (Bitmap)</button>
+                    <div class="btn-group" style="margin-top: 10px;">
+                        <button id="btn-exp-svg">Download Vector (SVG)</button>
+                        <button id="btn-exp-png">Download Bitmap (PNG)</button>
                     </div>
                 </div>
 
-                <div class="section control-playback">
-                     <button id="btn-pause" disabled>Pause / Resume</button>
-                </div>
             </details>
         </aside>
 

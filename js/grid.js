@@ -5,10 +5,7 @@ export class Cell {
         // Top, Right, Bottom, Left
         this.walls = [true, true, true, true];
         this.visited = false;
-        
-        // State for solvers/generators
-        this.inSet = null; // For Kruskal/Eller
-        this.isCustomPath = false; // Is part of user drawn path?
+        this.isCustomPath = false; 
     }
 }
 

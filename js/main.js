@@ -7,11 +7,11 @@ const ctx = canvas.getContext('2d');
 const ui = {
     cols: document.getElementById('inp-cols'),
     rows: document.getElementById('inp-rows'),
+    lock: document.getElementById('btn-lock-ratio'),
     algo: document.getElementById('sel-algo'),
     speed: document.getElementById('inp-speed'),
     loops: document.getElementById('inp-loops'),
     btnGen: document.getElementById('btn-generate'),
-    btnPause: document.getElementById('btn-pause'),
     status: document.getElementById('status-text'),
     tools: {
         pencil: document.getElementById('btn-tool-pencil'),
@@ -29,11 +29,27 @@ const ui = {
 
 let grid;
 let cellSize;
-let isPaused = false;
+let offsetX = 0;
+let offsetY = 0;
+
 let isGenerating = false;
-let toolMode = null; // 'pencil' | 'eraser' | null
-let customPathPoints = []; // List of cells in order
-let lastDrawnCell = null;
+let currentGenId = 0; // Allows interrupting previous generation
+let toolMode = null; 
+let customPathPoints = []; 
+
+// Aspect Ratio
+let isRatioLocked = false;
+let lockedRatio = 1;
+
+// Solver & Emojis
+let startCoords = {i: 0, j: 0};
+let goalCoords = {i: 1, j: 1}; // updated dynamically
+let draggingNode = null; // 'start' | 'goal' | null
+let solutionPath = [];
+
+// Wall Eraser (Loops) real-time state
+let originalWalls = [];
+let removableWallPool = [];
 
 // --- INITIALIZATION ---
 
@@ -50,99 +66,160 @@ function resize() {
 }
 
 function setupGrid() {
-    const cols = parseInt(ui.cols.value);
-    const rows = parseInt(ui.rows.value);
+    let cols = parseInt(ui.cols.value);
+    let rows = parseInt(ui.rows.value);
+    if(cols < 2) { cols = 2; ui.cols.value = 2; }
+    if(rows < 2) { rows = 2; ui.rows.value = 2; }
+
     grid = new Grid(cols, rows);
     
-    // Calculate cell size to fit nicely
-    const maxW = canvas.width - 40;
-    const maxH = canvas.height - 40;
-    cellSize = Math.floor(Math.min(maxW/cols, maxH/rows));
-    if(cellSize < 4) cellSize = 4; // Min size
+    // Safety clamp for solver emojis
+    if(startCoords.i >= cols) startCoords.i = cols - 1;
+    if(startCoords.j >= rows) startCoords.j = rows - 1;
+    if(goalCoords.i >= cols) goalCoords.i = cols - 1;
+    if(goalCoords.j >= rows) goalCoords.j = rows - 1;
+    
+    // Default goal to bottom right if it was default
+    if(goalCoords.i === 1 && goalCoords.j === 1 && cols > 2) {
+        goalCoords = {i: cols-1, j: rows-1};
+    }
 
-    // Center grid
-    const gridW = cols * cellSize;
-    const gridH = rows * cellSize;
-    ctx.translate(Math.floor((canvas.width - gridW)/2) + 0.5, Math.floor((canvas.height - gridH)/2) + 0.5);
-
+    solutionPath = [];
+    originalWalls = [];
+    removableWallPool = [];
     draw();
 }
 
 // --- DRAWING ---
 
 function draw() {
-    // Clear whole canvas (accounting for translate)
-    ctx.save();
-    ctx.setTransform(1,0,0,1,0,0);
-    ctx.fillStyle = "#fff"; // Paper color
-    ctx.fillRect(0,0,canvas.width, canvas.height);
-    ctx.restore();
-
     if(!grid) return;
+    
+    // Clear canvas
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(0,0,canvas.width, canvas.height);
 
-    // Draw Cells
+    // Calculate dynamic center offset
+    const maxW = canvas.width - 40;
+    const maxH = canvas.height - 40;
+    cellSize = Math.floor(Math.min(maxW/grid.cols, maxH/grid.rows));
+    if(cellSize < 4) cellSize = 4;
+
+    const gridW = grid.cols * cellSize;
+    const gridH = grid.rows * cellSize;
+    offsetX = Math.floor((canvas.width - gridW)/2);
+    offsetY = Math.floor((canvas.height - gridH)/2);
+
+    // Draw Backgrounds
     for(let c of grid.cells) {
-        let x = c.i * cellSize;
-        let y = c.j * cellSize;
-
-        // Backgrounds
-        if (c.visited) {
-            ctx.fillStyle = "#fff";
-        } else {
-            ctx.fillStyle = "#e0e0e0"; // Unvisited gray
-        }
+        let x = offsetX + c.i * cellSize;
+        let y = offsetY + c.j * cellSize;
+        ctx.fillStyle = c.visited ? "#fff" : "#e0e0e0";
         ctx.fillRect(x, y, cellSize, cellSize);
 
-        // Custom Path Highlight
         if(c.isCustomPath) {
              ctx.fillStyle = "rgba(255, 0, 0, 0.1)";
              ctx.fillRect(x, y, cellSize, cellSize);
         }
+    }
 
-        // Walls
-        ctx.strokeStyle = "#000";
-        ctx.lineWidth = Math.max(1, Math.floor(cellSize/10));
-        ctx.beginPath();
+    // Draw Walls (Using square caps for flush T-junctions)
+    ctx.strokeStyle = "#000";
+    ctx.lineCap = "square"; 
+    ctx.lineWidth = Math.max(1, Math.floor(cellSize/10));
+    ctx.beginPath();
+    for(let c of grid.cells) {
+        let x = offsetX + c.i * cellSize;
+        let y = offsetY + c.j * cellSize;
         if(c.walls[0]) { ctx.moveTo(x,y); ctx.lineTo(x+cellSize, y); }
         if(c.walls[1]) { ctx.moveTo(x+cellSize,y); ctx.lineTo(x+cellSize, y+cellSize); }
         if(c.walls[2]) { ctx.moveTo(x+cellSize,y+cellSize); ctx.lineTo(x, y+cellSize); }
         if(c.walls[3]) { ctx.moveTo(x,y+cellSize); ctx.lineTo(x, y); }
+    }
+    ctx.stroke();
+
+    // Draw Solution Polyline
+    if (ui.export.solve.checked && solutionPath.length > 0) {
+        ctx.strokeStyle = "red";
+        ctx.lineWidth = Math.max(2, cellSize / 4);
+        ctx.lineJoin = ui.export.join.value;
+        ctx.lineCap = ui.export.join.value === 'round' ? 'round' : 'square';
+        ctx.beginPath();
+        let start = solutionPath[0];
+        ctx.moveTo(offsetX + start.i*cellSize + cellSize/2, offsetY + start.j*cellSize + cellSize/2);
+        for(let i=1; i<solutionPath.length; i++) {
+            let p = solutionPath[i];
+            ctx.lineTo(offsetX + p.i*cellSize + cellSize/2, offsetY + p.j*cellSize + cellSize/2);
+        }
+        ctx.stroke();
+    } else if (customPathPoints.length > 0) {
+        // Draw pre-drawn path if not solved
+        ctx.strokeStyle = "red";
+        ctx.lineWidth = Math.max(2, cellSize / 4);
+        ctx.lineJoin = "round";
+        ctx.lineCap = "round";
+        ctx.beginPath();
+        let start = customPathPoints[0];
+        ctx.moveTo(offsetX + start.i*cellSize + cellSize/2, offsetY + start.j*cellSize + cellSize/2);
+        for(let i=1; i<customPathPoints.length; i++) {
+            let p = customPathPoints[i];
+            ctx.lineTo(offsetX + p.i*cellSize + cellSize/2, offsetY + p.j*cellSize + cellSize/2);
+        }
         ctx.stroke();
     }
 
-    // Draw Solution (Red Line) - Pixel Perfect Logic
-    // If Custom Path exists or Solved
-    if (customPathPoints.length > 1 || ui.export.solve.checked) {
-        drawSolutionLine();
+    // Draw Emojis
+    if (ui.export.solve.checked) {
+        ctx.font = `${Math.max(12, cellSize * 0.7)}px Arial`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText("🐒", offsetX + startCoords.i * cellSize + cellSize/2, offsetY + startCoords.j * cellSize + cellSize/2 + 2);
+        ctx.fillText("🍌", offsetX + goalCoords.i * cellSize + cellSize/2, offsetY + goalCoords.j * cellSize + cellSize/2 + 2);
     }
 }
 
-function drawSolutionLine() {
-    ctx.strokeStyle = "red";
-    // Scale line width for viewing, but keep logic simple
-    ctx.lineWidth = Math.max(2, cellSize / 4);
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-    ctx.beginPath();
+// --- SOLVER (BFS) ---
 
-    // If visualizing custom path creation
-    if (customPathPoints.length > 0) {
-        let start = customPathPoints[0];
-        ctx.moveTo(start.i*cellSize + cellSize/2, start.j*cellSize + cellSize/2);
-        for(let i=1; i<customPathPoints.length; i++) {
-            let p = customPathPoints[i];
-            ctx.moveTo(customPathPoints[i-1].i*cellSize + cellSize/2, customPathPoints[i-1].j*cellSize + cellSize/2); // Gap fix
-            ctx.lineTo(p.i*cellSize + cellSize/2, p.j*cellSize + cellSize/2);
+function solveMaze() {
+    solutionPath = [];
+    if (!ui.export.solve.checked) return;
+
+    let queue = [[grid.getCell(startCoords.i, startCoords.j)]];
+    let visited = new Set();
+    visited.add(`${startCoords.i},${startCoords.j}`);
+
+    while (queue.length > 0) {
+        let path = queue.shift();
+        let current = path[path.length - 1];
+
+        if (current.i === goalCoords.i && current.j === goalCoords.j) {
+            solutionPath = path;
+            return;
+        }
+
+        // Available neighbors based on open walls
+        let ns = [];
+        if (!current.walls[0]) ns.push(grid.getCell(current.i, current.j - 1));
+        if (!current.walls[1]) ns.push(grid.getCell(current.i + 1, current.j));
+        if (!current.walls[2]) ns.push(grid.getCell(current.i, current.j + 1));
+        if (!current.walls[3]) ns.push(grid.getCell(current.i - 1, current.j));
+
+        for (let n of ns) {
+            if (n && !visited.has(`${n.i},${n.j}`)) {
+                visited.add(`${n.i},${n.j}`);
+                queue.push([...path, n]);
+            }
         }
     }
-    // TODO: Generic solver for generated mazes would go here
-    ctx.stroke();
 }
 
 // --- GENERATION LOOP ---
 
 async function generate() {
-    if(isGenerating) return;
+    // Interrupt existing generation
+    currentGenId++;
+    const myGenId = currentGenId;
+    isGenerating = true;
     
     // Check Custom Path Compatibility
     const algoKey = ui.algo.value;
@@ -150,14 +227,14 @@ async function generate() {
         const forbidden = ['division', 'eller', 'sidewinder', 'binary'];
         if(forbidden.includes(algoKey)) {
             showToast(`Error: ${algoKey} cannot rely on custom paths. Clear path or change algo.`);
+            isGenerating = false;
             return;
         }
     }
 
-    isGenerating = true;
     ui.status.innerText = "Generating...";
-    ui.btnGen.disabled = true;
-    ui.btnPause.disabled = false;
+    ui.btnGen.innerText = "INTERRUPT & RESTART";
+    ui.btnGen.classList.add('active'); // visual change
     
     // Reset but keep custom path walls open
     let oldPath = [...customPathPoints];
@@ -166,331 +243,183 @@ async function generate() {
         c.walls = [true,true,true,true];
     });
 
-    // Re-carve custom path
     if(oldPath.length > 0) {
         for(let i=0; i<oldPath.length-1; i++) {
             let a = grid.getCell(oldPath[i].i, oldPath[i].j);
             let b = grid.getCell(oldPath[i+1].i, oldPath[i+1].j);
-            a.isCustomPath = true;
-            b.isCustomPath = true;
+            a.isCustomPath = true; b.isCustomPath = true;
             grid.removeWall(a, b);
         }
     }
 
-    // Select Algo
     const strategies = {
-        'dfs': Algo.algoDFS,
-        'prims': Algo.algoPrims,
-        'kruskal': Algo.algoKruskal,
-        'huntkill': Algo.algoHuntKill,
-        'aldous': Algo.algoAldous,
-        'wilson': Algo.algoWilson,
-        'division': Algo.algoDivision,
-        'eller': Algo.algoEller,
-        'sidewinder': Algo.algoSidewinder,
+        'dfs': Algo.algoDFS, 'prims': Algo.algoPrims, 'kruskal': Algo.algoKruskal,
+        'huntkill': Algo.algoHuntKill, 'aldous': Algo.algoAldous, 'wilson': Algo.algoWilson,
+        'division': Algo.algoDivision, 'eller': Algo.algoEller, 'sidewinder': Algo.algoSidewinder,
         'binary': Algo.algoBinary
     };
 
-    // Run Algo
+    // Pause Checker throws to kill loop instantly
+    const checkPause = async () => {
+        if(myGenId !== currentGenId) throw "ABORT";
+        let speed = parseInt(ui.speed.value);
+        if (speed < 100) await Algo.sleep((100 - speed) * 5);
+    };
+
     try {
         await strategies[algoKey](grid, () => {
-             // Basic redraw throttling could go here
-             draw(); 
+             // Throttled draw for max speed
+             if(parseInt(ui.speed.value) < 100 || Math.random() < 0.05) draw();
         }, checkPause);
     } catch (e) {
+        if(e === "ABORT") return; // Silently exit old loop
         console.error(e);
         showToast("Error during generation");
     }
 
-    // Post Process: Loop Eraser
-    const loopP = parseInt(ui.loops.value);
-    if(loopP > 0 && customPathPoints.length === 0) {
-        // Randomly remove internal walls
-        grid.cells.forEach(c => {
-             if(Math.random() * 100 < loopP) {
-                 // pick random wall that isn't border
-                 let w = Math.floor(Math.random()*4);
-                 // safety checks omitted for brevity, simple removal
-                 if(c.i>0 && w===3) c.walls[3] = false;
-                 if(c.i<grid.cols-1 && w===1) c.walls[1] = false;
-                 if(c.j>0 && w===0) c.walls[0] = false;
-                 if(c.j<grid.rows-1 && w===2) c.walls[2] = false;
-             }
-        });
-        draw();
+    // Build Eraser (Loop) Pool
+    originalWalls = grid.cells.map(c => [...c.walls]);
+    removableWallPool = [];
+    for(let c of grid.cells) {
+        if(c.i < grid.cols-1 && c.walls[1]) removableWallPool.push({c1: c, w1: 1, c2: grid.getCell(c.i+1, c.j), w2: 3});
+        if(c.j < grid.rows-1 && c.walls[2]) removableWallPool.push({c1: c, w1: 2, c2: grid.getCell(c.i, c.j+1), w2: 0});
     }
+    removableWallPool.sort(() => Math.random() - 0.5); // Shuffle seed
 
+    applyEraser(); // Applies loops and solves
+    
     isGenerating = false;
     ui.status.innerText = "Done";
-    ui.btnGen.disabled = false;
-    ui.btnPause.disabled = true;
+    ui.btnGen.innerText = "GENERATE MAZE";
+    ui.btnGen.classList.remove('active');
 }
 
-// Pause Logic
-async function checkPause() {
-    // 100 speed = 0 delay, 1 speed = 500ms
-    let ms = (100 - parseInt(ui.speed.value)) * 5;
-    if (ms > 0) await Algo.sleep(ms);
+// --- WALL ERASER (REAL-TIME) ---
+function applyEraser() {
+    if(originalWalls.length === 0) return; // Not generated yet
+
+    // Restore original
+    grid.cells.forEach((c, idx) => c.walls = [...originalWalls[idx]]);
     
-    while(isPaused) {
-        await Algo.sleep(100);
+    // Erase %
+    let percent = parseInt(ui.loops.value);
+    document.getElementById('lbl-loops').innerText = percent + "%";
+    
+    let limit = Math.floor(removableWallPool.length * (percent / 100));
+    for(let i=0; i<limit; i++) {
+        let p = removableWallPool[i];
+        p.c1.walls[p.w1] = false;
+        p.c2.walls[p.w2] = false;
     }
+    
+    solveMaze();
+    draw();
 }
+ui.loops.oninput = applyEraser;
 
-// --- CUSTOM PATH TOOL ---
+// --- INPUT HANDLERS & RATIO LOCK ---
 
-function handleCanvasClick(e) {
-    if(!toolMode || isGenerating) return;
+ui.lock.onclick = () => {
+    isRatioLocked = !isRatioLocked;
+    ui.lock.classList.toggle('active', isRatioLocked);
+    if(isRatioLocked) lockedRatio = parseInt(ui.cols.value) / parseInt(ui.rows.value);
+};
 
+ui.cols.oninput = () => {
+    if(parseInt(ui.cols.value) < 2) ui.cols.value = 2;
+    if(isRatioLocked) ui.rows.value = Math.max(2, Math.round(parseInt(ui.cols.value) / lockedRatio));
+    setupGrid();
+};
+
+ui.rows.oninput = () => {
+    if(parseInt(ui.rows.value) < 2) ui.rows.value = 2;
+    if(isRatioLocked) ui.cols.value = Math.max(2, Math.round(parseInt(ui.rows.value) * lockedRatio));
+    setupGrid();
+};
+
+ui.chkSolve.onchange = () => { solveMaze(); draw(); };
+ui.export.join.onchange = draw;
+
+// --- MOUSE & TOOL INTERACTION ---
+
+function getCellFromMouse(e) {
     const rect = canvas.getBoundingClientRect();
-    // Reverse Translate
-    const startX = (canvas.width - (grid.cols * cellSize)) / 2;
-    const startY = (canvas.height - (grid.rows * cellSize)) / 2;
-    
-    const x = e.clientX - rect.left - startX;
-    const y = e.clientY - rect.top - startY;
-    
+    const x = e.clientX - rect.left - offsetX;
+    const y = e.clientY - rect.top - offsetY;
     const i = Math.floor(x / cellSize);
     const j = Math.floor(y / cellSize);
-    
-    const cell = grid.getCell(i, j);
+    return grid.getCell(i, j);
+}
+
+canvas.addEventListener('mousedown', (e) => {
+    const cell = getCellFromMouse(e);
     if(!cell) return;
 
+    // 1. Emoji Drag Check (Takes precedence over drawing)
+    if(ui.export.solve.checked) {
+        if(cell.i === startCoords.i && cell.j === startCoords.j) { draggingNode = 'start'; return; }
+        if(cell.i === goalCoords.i && cell.j === goalCoords.j) { draggingNode = 'goal'; return; }
+    }
+
+    // 2. Tool Check
+    if(!toolMode || isGenerating) return;
+    
     if(toolMode === 'pencil') {
-        addPathPoint(cell);
+        if(customPathPoints.length > 0) {
+            let last = customPathPoints[customPathPoints.length-1];
+            if(cell.isCustomPath) { showToast("Cannot intersect path!"); return; }
+            
+            // Auto route Manhattan
+            let dx = Math.sign(cell.i - last.i);
+            let dy = Math.sign(cell.j - last.j);
+            let cx = last.i, cy = last.j;
+            
+            while(cx !== cell.i) {
+                cx += dx;
+                let c = grid.getCell(cx, cy);
+                if(c.isCustomPath) { showToast("Intersection!"); return; }
+                c.isCustomPath = true; customPathPoints.push(c);
+            }
+            while(cy !== cell.j) {
+                cy += dy;
+                let c = grid.getCell(cx, cy);
+                if(c.isCustomPath) { showToast("Intersection!"); return; }
+                c.isCustomPath = true; customPathPoints.push(c);
+            }
+        } else {
+            cell.isCustomPath = true; customPathPoints.push(cell);
+        }
+        draw();
     } else if(toolMode === 'eraser') {
-        // Logic to remove point and break path
         const idx = customPathPoints.indexOf(cell);
         if(idx > -1) {
             customPathPoints.splice(idx, 1);
             cell.isCustomPath = false;
-            // Reset neighboring walls logic required, 
-            // but for simple UI, we just rebuild visual on Generate
             draw();
         }
     }
-}
+});
 
-function addPathPoint(cell) {
-    // If first point
-    if(customPathPoints.length === 0) {
-        customPathPoints.push(cell);
-        cell.isCustomPath = true;
+window.addEventListener('mousemove', (e) => {
+    if(!draggingNode) return;
+    const cell = getCellFromMouse(e);
+    if(cell) {
+        if(draggingNode === 'start') { startCoords = {i: cell.i, j: cell.j}; }
+        else { goalCoords = {i: cell.i, j: cell.j}; }
+        solveMaze();
         draw();
-        return;
     }
+});
 
-    // Get last point
-    const last = customPathPoints[customPathPoints.length-1];
-    
-    // Validate: Manhattan connection (no diagonals)
-    // We auto-route using simple Manhattan steps
-    let curr = last;
-    let target = cell;
-    
-    // Prevent loops/intersection
-    if(cell.isCustomPath) {
-        showToast("Path cannot intersect itself!");
-        return;
-    }
+window.addEventListener('mouseup', () => { draggingNode = null; });
 
-    // Draw steps
-    let dx = Math.sign(target.i - curr.i);
-    let dy = Math.sign(target.j - curr.j);
-
-    // Simple routing: Move X then Y
-    // TODO: Improve to ZigZag if needed
-    let tempPoints = [];
-    let cx = curr.i, cy = curr.j;
-    
-    while(cx !== target.i) {
-        cx += dx;
-        let c = grid.getCell(cx, cy);
-        if(c.isCustomPath) { showToast("Path intersects!"); return; }
-        tempPoints.push(c);
-    }
-    while(cy !== target.j) {
-        cy += dy;
-        let c = grid.getCell(cx, cy);
-        if(c.isCustomPath) { showToast("Path intersects!"); return; }
-        tempPoints.push(c);
-    }
-
-    // Apply
-    tempPoints.forEach(p => {
-        p.isCustomPath = true;
-        customPathPoints.push(p);
-    });
-    
-    draw();
-}
-
-// --- EXPORT SVG (Optimized) ---
-function exportSVG() {
-    const w = grid.cols * cellSize;
-    const h = grid.rows * cellSize;
-    const join = ui.export.join.value;
-    
-    // Greedy Line Merger
-    let lines = [];
-    
-    // Horizontal Pass (Top Walls)
-    for(let j=0; j<grid.rows; j++) {
-        let start = -1;
-        for(let i=0; i<grid.cols; i++) {
-            let c = grid.getCell(i,j);
-            if(c.walls[0]) {
-                if(start === -1) start = i;
-            } else {
-                if(start !== -1) {
-                    lines.push(`<line x1="${start*cellSize}" y1="${j*cellSize}" x2="${i*cellSize}" y2="${j*cellSize}" />`);
-                    start = -1;
-                }
-            }
-        }
-        if(start !== -1) lines.push(`<line x1="${start*cellSize}" y1="${j*cellSize}" x2="${grid.cols*cellSize}" y2="${j*cellSize}" />`);
-    }
-    // Bottom Border (Last Row)
-    lines.push(`<line x1="0" y1="${grid.rows*cellSize}" x2="${grid.cols*cellSize}" y2="${grid.rows*cellSize}" />`);
-
-    // Vertical Pass (Left Walls)
-    for(let i=0; i<grid.cols; i++) {
-        let start = -1;
-        for(let j=0; j<grid.rows; j++) {
-            let c = grid.getCell(i,j);
-            if(c.walls[3]) {
-                if(start === -1) start = j;
-            } else {
-                if(start !== -1) {
-                    lines.push(`<line x1="${i*cellSize}" y1="${start*cellSize}" x2="${i*cellSize}" y2="${j*cellSize}" />`);
-                    start = -1;
-                }
-            }
-        }
-        if(start !== -1) lines.push(`<line x1="${i*cellSize}" y1="${start*cellSize}" x2="${i*cellSize}" y2="${grid.rows*cellSize}" />`);
-    }
-    // Right Border
-    lines.push(`<line x1="${grid.cols*cellSize}" y1="0" x2="${grid.cols*cellSize}" y2="${grid.rows*cellSize}" />`);
-
-    // Add Solution if checked
-    let solutionPoly = "";
-    if(ui.export.solve.checked && customPathPoints.length > 0) {
-        let points = customPathPoints.map(p => `${p.i*cellSize + cellSize/2},${p.j*cellSize + cellSize/2}`).join(" ");
-        solutionPoly = `<polyline points="${points}" stroke="red" stroke-width="${cellSize/3}" fill="none" stroke-linejoin="${join}" stroke-linecap="round" opacity="0.7"/>`;
-    }
-
-    const svg = `
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}">
-        <rect width="100%" height="100%" fill="white"/>
-        <g stroke="black" stroke-width="${Math.max(2, cellSize/10)}" stroke-linecap="square" stroke-linejoin="${join}">
-            ${lines.join('\n')}
-        </g>
-        ${solutionPoly}
-    </svg>`;
-    
-    download("maze.svg", svg, "image/svg+xml");
-}
-
-// --- EXPORT PNG (Pixel Perfect) ---
-function exportPNG() {
-    // 1px Wall, 3px Floor -> 4px Cell
-    const scale = 4; 
-    const w = grid.cols * scale + 1;
-    const h = grid.rows * scale + 1;
-    
-    const oc = document.createElement('canvas');
-    oc.width = w; oc.height = h;
-    const ctx = oc.getContext('2d');
-    
-    // Fill Black (Walls)
-    ctx.fillStyle = "black";
-    ctx.fillRect(0,0,w,h);
-    
-    // Carve White (Floors)
-    ctx.fillStyle = "white";
-    for(let c of grid.cells) {
-        let x = c.i * scale + 1; // 1px offset for left wall
-        let y = c.j * scale + 1;
-        
-        // Floor center 3x3
-        ctx.fillRect(x, y, 3, 3);
-        
-        // Open walls (Right and Bottom only needed if we iterate all)
-        if(!c.walls[1]) ctx.fillRect(x+3, y, 1, 3); // Right
-        if(!c.walls[2]) ctx.fillRect(x, y+3, 3, 1); // Bottom
-    }
-
-    // Draw Solution (Single red pixel in middle)
-    if(ui.export.solve.checked && customPathPoints.length > 0) {
-        ctx.fillStyle = "red";
-        for(let i=0; i<customPathPoints.length; i++) {
-            let c = customPathPoints[i];
-            let cx = c.i * scale + 2; // Pixel 2 (0=wall, 1=floor, 2=mid, 3=floor)
-            let cy = c.j * scale + 2;
-            
-            ctx.fillRect(cx, cy, 1, 1); // The point
-            
-            // Connect to next
-            if(i < customPathPoints.length-1) {
-                let n = customPathPoints[i+1];
-                let nx = n.i * scale + 2;
-                let ny = n.j * scale + 2;
-                
-                // Draw line between cx,cy and nx,ny (Manhattan only)
-                if(cx < nx) ctx.fillRect(cx, cy, (nx-cx)+1, 1);
-                else if(cx > nx) ctx.fillRect(nx, ny, (cx-nx)+1, 1);
-                else if(cy < ny) ctx.fillRect(cx, cy, 1, (ny-cy)+1);
-                else if(cy > ny) ctx.fillRect(cx, ny, 1, (cy-ny)+1);
-            }
-        }
-    }
-
-    const a = document.createElement('a');
-    a.download = "maze_pixel.png";
-    a.href = oc.toDataURL("image/png");
-    a.click();
-}
-
-function download(name, content, type) {
-    const blob = new Blob([content], {type: type});
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = name;
-    a.click();
-}
-
-function showToast(msg) {
-    const d = document.createElement('div');
-    d.className = 'toast';
-    d.innerText = msg;
-    document.getElementById('toast-container').appendChild(d);
-    setTimeout(()=>d.remove(), 3000);
-}
-
-// --- EVENTS ---
-
-ui.btnGen.onclick = generate;
-ui.btnPause.onclick = () => { isPaused = !isPaused; };
-
-// Inputs
-ui.cols.onchange = setupGrid;
-ui.rows.onchange = setupGrid;
-ui.loops.oninput = (e) => document.getElementById('lbl-loops').innerText = e.target.value + "%";
-ui.speed.oninput = (e) => {
-    let v = e.target.value;
-    document.getElementById('lbl-speed').innerText = v > 90 ? "Instant" : (v < 20 ? "Slow" : "Normal");
-};
-
-// Tools
 const setTool = (t) => {
     toolMode = toolMode === t ? null : t;
     ui.tools.pencil.classList.toggle('active', toolMode==='pencil');
     ui.tools.eraser.classList.toggle('active', toolMode==='eraser');
     
     if(toolMode) {
-        customPathPoints = []; // Reset on new start for simplicity or keep? Keep is better.
-        setupGrid(); // Clear maze but keep custom path logic
+        setupGrid(); 
         ui.tools.warning.classList.remove('hidden');
     } else {
         ui.tools.warning.classList.add('hidden');
@@ -500,11 +429,111 @@ const setTool = (t) => {
 ui.tools.pencil.onclick = () => setTool('pencil');
 ui.tools.eraser.onclick = () => setTool('eraser');
 ui.tools.clear.onclick = () => { customPathPoints = []; setupGrid(); };
+ui.btnGen.onclick = generate;
+ui.speed.oninput = (e) => { document.getElementById('lbl-speed').innerText = e.target.value > 90 ? "Instant" : (e.target.value < 20 ? "Slow" : "Normal"); };
 
-canvas.addEventListener('mousedown', handleCanvasClick);
 
-// Export
+// --- EXPORT SVG (Optimized) ---
+function exportSVG() {
+    const w = grid.cols * cellSize;
+    const h = grid.rows * cellSize;
+    let lines = [];
+    
+    // Greedy Line Merger
+    for(let j=0; j<grid.rows; j++) {
+        let start = -1;
+        for(let i=0; i<grid.cols; i++) {
+            if(grid.getCell(i,j).walls[0]) { if(start === -1) start = i; } 
+            else if(start !== -1) { lines.push(`<line x1="${start*cellSize}" y1="${j*cellSize}" x2="${i*cellSize}" y2="${j*cellSize}" />`); start = -1; }
+        }
+        if(start !== -1) lines.push(`<line x1="${start*cellSize}" y1="${j*cellSize}" x2="${grid.cols*cellSize}" y2="${j*cellSize}" />`);
+    }
+    lines.push(`<line x1="0" y1="${grid.rows*cellSize}" x2="${grid.cols*cellSize}" y2="${grid.rows*cellSize}" />`);
+
+    for(let i=0; i<grid.cols; i++) {
+        let start = -1;
+        for(let j=0; j<grid.rows; j++) {
+            if(grid.getCell(i,j).walls[3]) { if(start === -1) start = j; } 
+            else if(start !== -1) { lines.push(`<line x1="${i*cellSize}" y1="${start*cellSize}" x2="${i*cellSize}" y2="${j*cellSize}" />`); start = -1; }
+        }
+        if(start !== -1) lines.push(`<line x1="${i*cellSize}" y1="${start*cellSize}" x2="${i*cellSize}" y2="${grid.rows*cellSize}" />`);
+    }
+    lines.push(`<line x1="${grid.cols*cellSize}" y1="0" x2="${grid.cols*cellSize}" y2="${grid.rows*cellSize}" />`);
+
+    // Solution Polyline
+    let solutionPoly = "";
+    if(ui.export.solve.checked && solutionPath.length > 0) {
+        let points = solutionPath.map(p => `${p.i*cellSize + cellSize/2},${p.j*cellSize + cellSize/2}`).join(" ");
+        solutionPoly = `<polyline points="${points}" stroke="red" stroke-width="${Math.max(2, cellSize/4)}" fill="none" stroke-linejoin="${ui.export.join.value}" stroke-linecap="${ui.export.join.value==='round'?'round':'square'}" opacity="0.8"/>`;
+    }
+
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}"><rect width="100%" height="100%" fill="white"/><g stroke="black" stroke-width="${Math.max(2, cellSize/10)}" stroke-linecap="square">${lines.join('\n')}</g>${solutionPoly}</svg>`;
+    download(`maze_${grid.cols}x${grid.rows}.svg`, svg, "image/svg+xml");
+}
+
+// --- EXPORT PNG (Pixel Perfect) ---
+function exportPNG() {
+    const scale = 4; // 1px wall, 3px floor
+    const w = grid.cols * scale + 1;
+    const h = grid.rows * scale + 1;
+    
+    const oc = document.createElement('canvas');
+    oc.width = w; oc.height = h;
+    const ctx = oc.getContext('2d');
+    
+    ctx.fillStyle = "black";
+    ctx.fillRect(0,0,w,h);
+    
+    ctx.fillStyle = "white";
+    for(let c of grid.cells) {
+        let x = c.i * scale + 1;
+        let y = c.j * scale + 1;
+        ctx.fillRect(x, y, 3, 3);
+        if(!c.walls[1]) ctx.fillRect(x+3, y, 1, 3);
+        if(!c.walls[2]) ctx.fillRect(x, y+3, 3, 1);
+    }
+
+    if(ui.export.solve.checked && solutionPath.length > 0) {
+        ctx.fillStyle = "red";
+        for(let i=0; i<solutionPath.length; i++) {
+            let c = solutionPath[i];
+            let cx = c.i * scale + 2;
+            let cy = c.j * scale + 2;
+            ctx.fillRect(cx, cy, 1, 1);
+            if(i < solutionPath.length-1) {
+                let n = solutionPath[i+1];
+                let nx = n.i * scale + 2;
+                let ny = n.j * scale + 2;
+                if(cx < nx) ctx.fillRect(cx, cy, (nx-cx)+1, 1);
+                else if(cx > nx) ctx.fillRect(nx, ny, (cx-nx)+1, 1);
+                else if(cy < ny) ctx.fillRect(cx, cy, 1, (ny-cy)+1);
+                else if(cy > ny) ctx.fillRect(cx, ny, 1, (cy-ny)+1);
+            }
+        }
+    }
+
+    const a = document.createElement('a');
+    a.download = `maze_${grid.cols}x${grid.rows}.png`;
+    a.href = oc.toDataURL("image/png");
+    a.click();
+}
+
+function download(name, content, type) {
+    const blob = new Blob([content], {type: type});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = name; a.click();
+}
+
+function showToast(msg) {
+    const d = document.createElement('div');
+    d.className = 'toast'; d.innerText = msg;
+    document.getElementById('toast-container').appendChild(d);
+    setTimeout(()=>d.remove(), 3000);
+}
+
 ui.export.svg.onclick = exportSVG;
 ui.export.png.onclick = exportPNG;
+ui.chkSolve = document.getElementById('chk-solve'); // Cache it
 
 init();
