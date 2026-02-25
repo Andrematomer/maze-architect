@@ -35,7 +35,7 @@ let offsetY = 0;
 let isGenerating = false;
 let currentGenId = 0; // Allows interrupting previous generation
 let toolMode = null; 
-let customPathPoints = []; 
+let customPathPoints =[]; 
 
 // Aspect Ratio
 let isRatioLocked = false;
@@ -43,13 +43,13 @@ let lockedRatio = 1;
 
 // Solver & Emojis
 let startCoords = {i: 0, j: 0};
-let goalCoords = {i: 1, j: 1}; // updated dynamically
-let draggingNode = null; // 'start' | 'goal' | null
+let goalCoords = {i: 1, j: 1}; 
+let draggingNode = null; 
 let solutionPath = [];
 
 // Wall Eraser (Loops) real-time state
-let originalWalls = [];
-let removableWallPool = [];
+let originalWalls =[];
+let removableWallPool =[];
 
 // --- INITIALIZATION ---
 
@@ -79,14 +79,14 @@ function setupGrid() {
     if(goalCoords.i >= cols) goalCoords.i = cols - 1;
     if(goalCoords.j >= rows) goalCoords.j = rows - 1;
     
-    // Default goal to bottom right if it was default
+    // Default goal to bottom right
     if(goalCoords.i === 1 && goalCoords.j === 1 && cols > 2) {
         goalCoords = {i: cols-1, j: rows-1};
     }
 
-    solutionPath = [];
+    solutionPath =[];
     originalWalls = [];
-    removableWallPool = [];
+    removableWallPool =[];
     draw();
 }
 
@@ -181,7 +181,7 @@ function draw() {
 // --- SOLVER (BFS) ---
 
 function solveMaze() {
-    solutionPath = [];
+    solutionPath =[];
     if (!ui.export.solve.checked) return;
 
     let queue = [[grid.getCell(startCoords.i, startCoords.j)]];
@@ -198,7 +198,7 @@ function solveMaze() {
         }
 
         // Available neighbors based on open walls
-        let ns = [];
+        let ns =[];
         if (!current.walls[0]) ns.push(grid.getCell(current.i, current.j - 1));
         if (!current.walls[1]) ns.push(grid.getCell(current.i + 1, current.j));
         if (!current.walls[2]) ns.push(grid.getCell(current.i, current.j + 1));
@@ -224,7 +224,7 @@ async function generate() {
     // Check Custom Path Compatibility
     const algoKey = ui.algo.value;
     if(customPathPoints.length > 0) {
-        const forbidden = ['division', 'eller', 'sidewinder', 'binary'];
+        const forbidden =['division', 'eller', 'sidewinder', 'binary'];
         if(forbidden.includes(algoKey)) {
             showToast(`Error: ${algoKey} cannot rely on custom paths. Clear path or change algo.`);
             isGenerating = false;
@@ -234,7 +234,7 @@ async function generate() {
 
     ui.status.innerText = "Generating...";
     ui.btnGen.innerText = "INTERRUPT & RESTART";
-    ui.btnGen.classList.add('active'); // visual change
+    ui.btnGen.classList.add('active'); 
     
     // Reset but keep custom path walls open
     let oldPath = [...customPathPoints];
@@ -247,8 +247,10 @@ async function generate() {
         for(let i=0; i<oldPath.length-1; i++) {
             let a = grid.getCell(oldPath[i].i, oldPath[i].j);
             let b = grid.getCell(oldPath[i+1].i, oldPath[i+1].j);
-            a.isCustomPath = true; b.isCustomPath = true;
-            grid.removeWall(a, b);
+            if(a && b) {
+                a.isCustomPath = true; b.isCustomPath = true;
+                grid.removeWall(a, b);
+            }
         }
     }
 
@@ -268,25 +270,24 @@ async function generate() {
 
     try {
         await strategies[algoKey](grid, () => {
-             // Throttled draw for max speed
              if(parseInt(ui.speed.value) < 100 || Math.random() < 0.05) draw();
         }, checkPause);
     } catch (e) {
-        if(e === "ABORT") return; // Silently exit old loop
+        if(e === "ABORT") return; 
         console.error(e);
         showToast("Error during generation");
     }
 
     // Build Eraser (Loop) Pool
-    originalWalls = grid.cells.map(c => [...c.walls]);
-    removableWallPool = [];
+    originalWalls = grid.cells.map(c =>[...c.walls]);
+    removableWallPool =[];
     for(let c of grid.cells) {
         if(c.i < grid.cols-1 && c.walls[1]) removableWallPool.push({c1: c, w1: 1, c2: grid.getCell(c.i+1, c.j), w2: 3});
         if(c.j < grid.rows-1 && c.walls[2]) removableWallPool.push({c1: c, w1: 2, c2: grid.getCell(c.i, c.j+1), w2: 0});
     }
-    removableWallPool.sort(() => Math.random() - 0.5); // Shuffle seed
+    removableWallPool.sort(() => Math.random() - 0.5); 
 
-    applyEraser(); // Applies loops and solves
+    applyEraser(); 
     
     isGenerating = false;
     ui.status.innerText = "Done";
@@ -296,12 +297,10 @@ async function generate() {
 
 // --- WALL ERASER (REAL-TIME) ---
 function applyEraser() {
-    if(originalWalls.length === 0) return; // Not generated yet
+    if(originalWalls.length === 0) return;
 
-    // Restore original
     grid.cells.forEach((c, idx) => c.walls = [...originalWalls[idx]]);
     
-    // Erase %
     let percent = parseInt(ui.loops.value);
     document.getElementById('lbl-loops').innerText = percent + "%";
     
@@ -315,7 +314,6 @@ function applyEraser() {
     solveMaze();
     draw();
 }
-ui.loops.oninput = applyEraser;
 
 // --- INPUT HANDLERS & RATIO LOCK ---
 
@@ -337,8 +335,14 @@ ui.rows.oninput = () => {
     setupGrid();
 };
 
-ui.chkSolve.onchange = () => { solveMaze(); draw(); };
+// Fixed Event Listeners!
+ui.export.solve.onchange = () => { solveMaze(); draw(); };
 ui.export.join.onchange = draw;
+ui.loops.oninput = applyEraser;
+ui.btnGen.onclick = generate;
+ui.speed.oninput = (e) => { 
+    document.getElementById('lbl-speed').innerText = e.target.value > 90 ? "Instant" : (e.target.value < 20 ? "Slow" : "Normal"); 
+};
 
 // --- MOUSE & TOOL INTERACTION ---
 
@@ -355,13 +359,11 @@ canvas.addEventListener('mousedown', (e) => {
     const cell = getCellFromMouse(e);
     if(!cell) return;
 
-    // 1. Emoji Drag Check (Takes precedence over drawing)
     if(ui.export.solve.checked) {
         if(cell.i === startCoords.i && cell.j === startCoords.j) { draggingNode = 'start'; return; }
         if(cell.i === goalCoords.i && cell.j === goalCoords.j) { draggingNode = 'goal'; return; }
     }
 
-    // 2. Tool Check
     if(!toolMode || isGenerating) return;
     
     if(toolMode === 'pencil') {
@@ -369,7 +371,6 @@ canvas.addEventListener('mousedown', (e) => {
             let last = customPathPoints[customPathPoints.length-1];
             if(cell.isCustomPath) { showToast("Cannot intersect path!"); return; }
             
-            // Auto route Manhattan
             let dx = Math.sign(cell.i - last.i);
             let dy = Math.sign(cell.j - last.j);
             let cx = last.i, cy = last.j;
@@ -395,6 +396,19 @@ canvas.addEventListener('mousedown', (e) => {
         if(idx > -1) {
             customPathPoints.splice(idx, 1);
             cell.isCustomPath = false;
+            
+            // Re-route gap manhattan style if surrounded by path
+            if(idx > 0 && idx < customPathPoints.length) {
+                let prev = customPathPoints[idx-1];
+                let next = customPathPoints[idx];
+                let cX = prev.i, cY = prev.j;
+                let dx = Math.sign(next.i - cX);
+                let dy = Math.sign(next.j - cY);
+                let fillers =[];
+                while(cX !== next.i) { cX += dx; if(cX !== next.i || cY !== next.j) fillers.push(grid.getCell(cX, cY)); }
+                while(cY !== next.j) { cY += dy; if(cX !== next.i || cY !== next.j) fillers.push(grid.getCell(cX, cY)); }
+                fillers.forEach(f => { f.isCustomPath = true; customPathPoints.splice(idx, 0, f); });
+            }
             draw();
         }
     }
@@ -428,16 +442,13 @@ const setTool = (t) => {
 
 ui.tools.pencil.onclick = () => setTool('pencil');
 ui.tools.eraser.onclick = () => setTool('eraser');
-ui.tools.clear.onclick = () => { customPathPoints = []; setupGrid(); };
-ui.btnGen.onclick = generate;
-ui.speed.oninput = (e) => { document.getElementById('lbl-speed').innerText = e.target.value > 90 ? "Instant" : (e.target.value < 20 ? "Slow" : "Normal"); };
-
+ui.tools.clear.onclick = () => { customPathPoints =[]; setupGrid(); };
 
 // --- EXPORT SVG (Optimized) ---
 function exportSVG() {
     const w = grid.cols * cellSize;
     const h = grid.rows * cellSize;
-    let lines = [];
+    let lines =[];
     
     // Greedy Line Merger
     for(let j=0; j<grid.rows; j++) {
@@ -479,35 +490,35 @@ function exportPNG() {
     
     const oc = document.createElement('canvas');
     oc.width = w; oc.height = h;
-    const ctx = oc.getContext('2d');
+    const offCtx = oc.getContext('2d');
     
-    ctx.fillStyle = "black";
-    ctx.fillRect(0,0,w,h);
+    offCtx.fillStyle = "black";
+    offCtx.fillRect(0,0,w,h);
     
-    ctx.fillStyle = "white";
+    offCtx.fillStyle = "white";
     for(let c of grid.cells) {
         let x = c.i * scale + 1;
         let y = c.j * scale + 1;
-        ctx.fillRect(x, y, 3, 3);
-        if(!c.walls[1]) ctx.fillRect(x+3, y, 1, 3);
-        if(!c.walls[2]) ctx.fillRect(x, y+3, 3, 1);
+        offCtx.fillRect(x, y, 3, 3);
+        if(!c.walls[1]) offCtx.fillRect(x+3, y, 1, 3);
+        if(!c.walls[2]) offCtx.fillRect(x, y+3, 3, 1);
     }
 
     if(ui.export.solve.checked && solutionPath.length > 0) {
-        ctx.fillStyle = "red";
+        offCtx.fillStyle = "red";
         for(let i=0; i<solutionPath.length; i++) {
             let c = solutionPath[i];
             let cx = c.i * scale + 2;
             let cy = c.j * scale + 2;
-            ctx.fillRect(cx, cy, 1, 1);
+            offCtx.fillRect(cx, cy, 1, 1);
             if(i < solutionPath.length-1) {
                 let n = solutionPath[i+1];
                 let nx = n.i * scale + 2;
                 let ny = n.j * scale + 2;
-                if(cx < nx) ctx.fillRect(cx, cy, (nx-cx)+1, 1);
-                else if(cx > nx) ctx.fillRect(nx, ny, (cx-nx)+1, 1);
-                else if(cy < ny) ctx.fillRect(cx, cy, 1, (ny-cy)+1);
-                else if(cy > ny) ctx.fillRect(cx, ny, 1, (cy-ny)+1);
+                if(cx < nx) offCtx.fillRect(cx, cy, (nx-cx)+1, 1);
+                else if(cx > nx) offCtx.fillRect(nx, ny, (cx-nx)+1, 1);
+                else if(cy < ny) offCtx.fillRect(cx, cy, 1, (ny-cy)+1);
+                else if(cy > ny) offCtx.fillRect(cx, ny, 1, (cy-ny)+1);
             }
         }
     }
@@ -534,6 +545,5 @@ function showToast(msg) {
 
 ui.export.svg.onclick = exportSVG;
 ui.export.png.onclick = exportPNG;
-ui.chkSolve = document.getElementById('chk-solve'); // Cache it
 
 init();
