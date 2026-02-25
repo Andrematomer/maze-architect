@@ -12,7 +12,7 @@ A powerful, browser-based maze generator built for efficiency and visual precisi
 
 ## 🚀 Live Demo
 
-**Url:** [pending]
+[Maze Architect](https://andrematomer.github.io/maze-architect)
 
 ## ✨ Features
 
@@ -40,8 +40,9 @@ We provide a variety of mathematical approaches to maze generation, simplified:
 
 ## 🛠️ How to Run Locally
 
-Since this is a static web application, no build tools or servers are strictly required.
+Because this project uses ES6 Modules (`type="module"`), modern browsers block opening it directly via `file://` due to CORS security. 
 
-1.  Clone this repository.
-2.  Navigate to the folder.
-3.  Open `index.html` in any modern web browser (Chrome, Firefox, Edge, Safari).
+To run it locally, use a simple local web server:
+*   **VS Code:** Install the "Live Server" extension and click "Go Live".
+*   **Python:** Open terminal in the folder and run `python -m http.server 8000`, then visit `http://localhost:8000`.
+*   **Node.js:** Run `npx serve`.
