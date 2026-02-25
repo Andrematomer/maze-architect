@@ -4,6 +4,8 @@ import * as Algo from './algorithms/generator.js';
 // --- CONFIG ---
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
+
+// Safely map UI elements
 const ui = {
     cols: document.getElementById('inp-cols'),
     rows: document.getElementById('inp-rows'),
@@ -19,7 +21,7 @@ const ui = {
         clear: document.getElementById('btn-tool-clear'),
         warning: document.getElementById('path-warning')
     },
-    export: {
+    output: { // renamed from 'export' to avoid strict module conflicts
         svg: document.getElementById('btn-exp-svg'),
         png: document.getElementById('btn-exp-png'),
         join: document.getElementById('sel-join'),
@@ -33,23 +35,20 @@ let offsetX = 0;
 let offsetY = 0;
 
 let isGenerating = false;
-let currentGenId = 0; // Allows interrupting previous generation
+let currentGenId = 0; 
 let toolMode = null; 
-let customPathPoints =[]; 
+let customPathPoints = []; 
 
-// Aspect Ratio
 let isRatioLocked = false;
 let lockedRatio = 1;
 
-// Solver & Emojis
 let startCoords = {i: 0, j: 0};
 let goalCoords = {i: 1, j: 1}; 
 let draggingNode = null; 
 let solutionPath = [];
 
-// Wall Eraser (Loops) real-time state
-let originalWalls =[];
-let removableWallPool =[];
+let originalWalls = [];
+let removableWallPool = [];
 
 // --- INITIALIZATION ---
 
@@ -66,27 +65,25 @@ function resize() {
 }
 
 function setupGrid() {
-    let cols = parseInt(ui.cols.value);
-    let rows = parseInt(ui.rows.value);
+    let cols = parseInt(ui.cols.value) || 20;
+    let rows = parseInt(ui.rows.value) || 20;
     if(cols < 2) { cols = 2; ui.cols.value = 2; }
     if(rows < 2) { rows = 2; ui.rows.value = 2; }
 
     grid = new Grid(cols, rows);
     
-    // Safety clamp for solver emojis
     if(startCoords.i >= cols) startCoords.i = cols - 1;
     if(startCoords.j >= rows) startCoords.j = rows - 1;
     if(goalCoords.i >= cols) goalCoords.i = cols - 1;
     if(goalCoords.j >= rows) goalCoords.j = rows - 1;
     
-    // Default goal to bottom right
     if(goalCoords.i === 1 && goalCoords.j === 1 && cols > 2) {
         goalCoords = {i: cols-1, j: rows-1};
     }
 
-    solutionPath =[];
+    solutionPath = [];
     originalWalls = [];
-    removableWallPool =[];
+    removableWallPool = [];
     draw();
 }
 
@@ -95,11 +92,9 @@ function setupGrid() {
 function draw() {
     if(!grid) return;
     
-    // Clear canvas
     ctx.fillStyle = "#fff";
     ctx.fillRect(0,0,canvas.width, canvas.height);
 
-    // Calculate dynamic center offset
     const maxW = canvas.width - 40;
     const maxH = canvas.height - 40;
     cellSize = Math.floor(Math.min(maxW/grid.cols, maxH/grid.rows));
@@ -110,7 +105,6 @@ function draw() {
     offsetX = Math.floor((canvas.width - gridW)/2);
     offsetY = Math.floor((canvas.height - gridH)/2);
 
-    // Draw Backgrounds
     for(let c of grid.cells) {
         let x = offsetX + c.i * cellSize;
         let y = offsetY + c.j * cellSize;
@@ -123,7 +117,6 @@ function draw() {
         }
     }
 
-    // Draw Walls (Using square caps for flush T-junctions)
     ctx.strokeStyle = "#000";
     ctx.lineCap = "square"; 
     ctx.lineWidth = Math.max(1, Math.floor(cellSize/10));
@@ -138,12 +131,14 @@ function draw() {
     }
     ctx.stroke();
 
-    // Draw Solution Polyline
-    if (ui.export.solve.checked && solutionPath.length > 0) {
+    const solveEnabled = ui.output.solve && ui.output.solve.checked;
+    const joinStyle = ui.output.join ? ui.output.join.value : 'round';
+
+    if (solveEnabled && solutionPath.length > 0) {
         ctx.strokeStyle = "red";
         ctx.lineWidth = Math.max(2, cellSize / 4);
-        ctx.lineJoin = ui.export.join.value;
-        ctx.lineCap = ui.export.join.value === 'round' ? 'round' : 'square';
+        ctx.lineJoin = joinStyle;
+        ctx.lineCap = joinStyle === 'round' ? 'round' : 'square';
         ctx.beginPath();
         let start = solutionPath[0];
         ctx.moveTo(offsetX + start.i*cellSize + cellSize/2, offsetY + start.j*cellSize + cellSize/2);
@@ -153,7 +148,6 @@ function draw() {
         }
         ctx.stroke();
     } else if (customPathPoints.length > 0) {
-        // Draw pre-drawn path if not solved
         ctx.strokeStyle = "red";
         ctx.lineWidth = Math.max(2, cellSize / 4);
         ctx.lineJoin = "round";
@@ -168,8 +162,7 @@ function draw() {
         ctx.stroke();
     }
 
-    // Draw Emojis
-    if (ui.export.solve.checked) {
+    if (solveEnabled) {
         ctx.font = `${Math.max(12, cellSize * 0.7)}px Arial`;
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
@@ -181,8 +174,8 @@ function draw() {
 // --- SOLVER (BFS) ---
 
 function solveMaze() {
-    solutionPath =[];
-    if (!ui.export.solve.checked) return;
+    solutionPath = [];
+    if (!ui.output.solve || !ui.output.solve.checked) return;
 
     let queue = [[grid.getCell(startCoords.i, startCoords.j)]];
     let visited = new Set();
@@ -197,8 +190,7 @@ function solveMaze() {
             return;
         }
 
-        // Available neighbors based on open walls
-        let ns =[];
+        let ns = [];
         if (!current.walls[0]) ns.push(grid.getCell(current.i, current.j - 1));
         if (!current.walls[1]) ns.push(grid.getCell(current.i + 1, current.j));
         if (!current.walls[2]) ns.push(grid.getCell(current.i, current.j + 1));
@@ -216,17 +208,15 @@ function solveMaze() {
 // --- GENERATION LOOP ---
 
 async function generate() {
-    // Interrupt existing generation
     currentGenId++;
     const myGenId = currentGenId;
     isGenerating = true;
     
-    // Check Custom Path Compatibility
     const algoKey = ui.algo.value;
     if(customPathPoints.length > 0) {
-        const forbidden =['division', 'eller', 'sidewinder', 'binary'];
+        const forbidden = ['division', 'eller', 'sidewinder', 'binary'];
         if(forbidden.includes(algoKey)) {
-            showToast(`Error: ${algoKey} cannot rely on custom paths. Clear path or change algo.`);
+            showToast(`Error: ${algoKey} cannot rely on custom paths.`);
             isGenerating = false;
             return;
         }
@@ -236,7 +226,6 @@ async function generate() {
     ui.btnGen.innerText = "INTERRUPT & RESTART";
     ui.btnGen.classList.add('active'); 
     
-    // Reset but keep custom path walls open
     let oldPath = [...customPathPoints];
     grid.cells.forEach(c => {
         c.visited = false;
@@ -261,7 +250,6 @@ async function generate() {
         'binary': Algo.algoBinary
     };
 
-    // Pause Checker throws to kill loop instantly
     const checkPause = async () => {
         if(myGenId !== currentGenId) throw "ABORT";
         let speed = parseInt(ui.speed.value);
@@ -278,9 +266,8 @@ async function generate() {
         showToast("Error during generation");
     }
 
-    // Build Eraser (Loop) Pool
-    originalWalls = grid.cells.map(c =>[...c.walls]);
-    removableWallPool =[];
+    originalWalls = grid.cells.map(c => [...c.walls]);
+    removableWallPool = [];
     for(let c of grid.cells) {
         if(c.i < grid.cols-1 && c.walls[1]) removableWallPool.push({c1: c, w1: 1, c2: grid.getCell(c.i+1, c.j), w2: 3});
         if(c.j < grid.rows-1 && c.walls[2]) removableWallPool.push({c1: c, w1: 2, c2: grid.getCell(c.i, c.j+1), w2: 0});
@@ -295,7 +282,6 @@ async function generate() {
     ui.btnGen.classList.remove('active');
 }
 
-// --- WALL ERASER (REAL-TIME) ---
 function applyEraser() {
     if(originalWalls.length === 0) return;
 
@@ -315,34 +301,42 @@ function applyEraser() {
     draw();
 }
 
-// --- INPUT HANDLERS & RATIO LOCK ---
+// --- EVENT LISTENERS (Robust Registration) ---
 
-ui.lock.onclick = () => {
-    isRatioLocked = !isRatioLocked;
-    ui.lock.classList.toggle('active', isRatioLocked);
-    if(isRatioLocked) lockedRatio = parseInt(ui.cols.value) / parseInt(ui.rows.value);
-};
+if(ui.lock) {
+    ui.lock.addEventListener('click', () => {
+        isRatioLocked = !isRatioLocked;
+        ui.lock.classList.toggle('active', isRatioLocked);
+        if(isRatioLocked) lockedRatio = parseInt(ui.cols.value) / parseInt(ui.rows.value);
+    });
+}
 
-ui.cols.oninput = () => {
-    if(parseInt(ui.cols.value) < 2) ui.cols.value = 2;
-    if(isRatioLocked) ui.rows.value = Math.max(2, Math.round(parseInt(ui.cols.value) / lockedRatio));
-    setupGrid();
-};
+if(ui.cols) {
+    ui.cols.addEventListener('input', () => {
+        if(parseInt(ui.cols.value) < 2) ui.cols.value = 2;
+        if(isRatioLocked) ui.rows.value = Math.max(2, Math.round(parseInt(ui.cols.value) / lockedRatio));
+        setupGrid();
+    });
+}
 
-ui.rows.oninput = () => {
-    if(parseInt(ui.rows.value) < 2) ui.rows.value = 2;
-    if(isRatioLocked) ui.cols.value = Math.max(2, Math.round(parseInt(ui.rows.value) * lockedRatio));
-    setupGrid();
-};
+if(ui.rows) {
+    ui.rows.addEventListener('input', () => {
+        if(parseInt(ui.rows.value) < 2) ui.rows.value = 2;
+        if(isRatioLocked) ui.cols.value = Math.max(2, Math.round(parseInt(ui.rows.value) * lockedRatio));
+        setupGrid();
+    });
+}
 
-// Fixed Event Listeners!
-ui.export.solve.onchange = () => { solveMaze(); draw(); };
-ui.export.join.onchange = draw;
-ui.loops.oninput = applyEraser;
-ui.btnGen.onclick = generate;
-ui.speed.oninput = (e) => { 
-    document.getElementById('lbl-speed').innerText = e.target.value > 90 ? "Instant" : (e.target.value < 20 ? "Slow" : "Normal"); 
-};
+if(ui.output.solve) ui.output.solve.addEventListener('change', () => { solveMaze(); draw(); });
+if(ui.output.join) ui.output.join.addEventListener('change', draw);
+if(ui.loops) ui.loops.addEventListener('input', applyEraser);
+if(ui.btnGen) ui.btnGen.addEventListener('click', generate);
+
+if(ui.speed) {
+    ui.speed.addEventListener('input', (e) => { 
+        document.getElementById('lbl-speed').innerText = e.target.value > 90 ? "Instant" : (e.target.value < 20 ? "Slow" : "Normal"); 
+    });
+}
 
 // --- MOUSE & TOOL INTERACTION ---
 
@@ -359,7 +353,7 @@ canvas.addEventListener('mousedown', (e) => {
     const cell = getCellFromMouse(e);
     if(!cell) return;
 
-    if(ui.export.solve.checked) {
+    if(ui.output.solve && ui.output.solve.checked) {
         if(cell.i === startCoords.i && cell.j === startCoords.j) { draggingNode = 'start'; return; }
         if(cell.i === goalCoords.i && cell.j === goalCoords.j) { draggingNode = 'goal'; return; }
     }
@@ -397,14 +391,13 @@ canvas.addEventListener('mousedown', (e) => {
             customPathPoints.splice(idx, 1);
             cell.isCustomPath = false;
             
-            // Re-route gap manhattan style if surrounded by path
             if(idx > 0 && idx < customPathPoints.length) {
                 let prev = customPathPoints[idx-1];
                 let next = customPathPoints[idx];
                 let cX = prev.i, cY = prev.j;
                 let dx = Math.sign(next.i - cX);
                 let dy = Math.sign(next.j - cY);
-                let fillers =[];
+                let fillers = [];
                 while(cX !== next.i) { cX += dx; if(cX !== next.i || cY !== next.j) fillers.push(grid.getCell(cX, cY)); }
                 while(cY !== next.j) { cY += dy; if(cX !== next.i || cY !== next.j) fillers.push(grid.getCell(cX, cY)); }
                 fillers.forEach(f => { f.isCustomPath = true; customPathPoints.splice(idx, 0, f); });
@@ -429,28 +422,27 @@ window.addEventListener('mouseup', () => { draggingNode = null; });
 
 const setTool = (t) => {
     toolMode = toolMode === t ? null : t;
-    ui.tools.pencil.classList.toggle('active', toolMode==='pencil');
-    ui.tools.eraser.classList.toggle('active', toolMode==='eraser');
+    if(ui.tools.pencil) ui.tools.pencil.classList.toggle('active', toolMode==='pencil');
+    if(ui.tools.eraser) ui.tools.eraser.classList.toggle('active', toolMode==='eraser');
     
     if(toolMode) {
         setupGrid(); 
-        ui.tools.warning.classList.remove('hidden');
+        if(ui.tools.warning) ui.tools.warning.classList.remove('hidden');
     } else {
-        ui.tools.warning.classList.add('hidden');
+        if(ui.tools.warning) ui.tools.warning.classList.add('hidden');
     }
 };
 
-ui.tools.pencil.onclick = () => setTool('pencil');
-ui.tools.eraser.onclick = () => setTool('eraser');
-ui.tools.clear.onclick = () => { customPathPoints =[]; setupGrid(); };
+if(ui.tools.pencil) ui.tools.pencil.addEventListener('click', () => setTool('pencil'));
+if(ui.tools.eraser) ui.tools.eraser.addEventListener('click', () => setTool('eraser'));
+if(ui.tools.clear) ui.tools.clear.addEventListener('click', () => { customPathPoints = []; setupGrid(); });
 
 // --- EXPORT SVG (Optimized) ---
 function exportSVG() {
     const w = grid.cols * cellSize;
     const h = grid.rows * cellSize;
-    let lines =[];
+    let lines = [];
     
-    // Greedy Line Merger
     for(let j=0; j<grid.rows; j++) {
         let start = -1;
         for(let i=0; i<grid.cols; i++) {
@@ -471,11 +463,11 @@ function exportSVG() {
     }
     lines.push(`<line x1="${grid.cols*cellSize}" y1="0" x2="${grid.cols*cellSize}" y2="${grid.rows*cellSize}" />`);
 
-    // Solution Polyline
     let solutionPoly = "";
-    if(ui.export.solve.checked && solutionPath.length > 0) {
+    if(ui.output.solve && ui.output.solve.checked && solutionPath.length > 0) {
+        const joinStyle = ui.output.join ? ui.output.join.value : 'round';
         let points = solutionPath.map(p => `${p.i*cellSize + cellSize/2},${p.j*cellSize + cellSize/2}`).join(" ");
-        solutionPoly = `<polyline points="${points}" stroke="red" stroke-width="${Math.max(2, cellSize/4)}" fill="none" stroke-linejoin="${ui.export.join.value}" stroke-linecap="${ui.export.join.value==='round'?'round':'square'}" opacity="0.8"/>`;
+        solutionPoly = `<polyline points="${points}" stroke="red" stroke-width="${Math.max(2, cellSize/4)}" fill="none" stroke-linejoin="${joinStyle}" stroke-linecap="${joinStyle==='round'?'round':'square'}" opacity="0.8"/>`;
     }
 
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}"><rect width="100%" height="100%" fill="white"/><g stroke="black" stroke-width="${Math.max(2, cellSize/10)}" stroke-linecap="square">${lines.join('\n')}</g>${solutionPoly}</svg>`;
@@ -484,7 +476,7 @@ function exportSVG() {
 
 // --- EXPORT PNG (Pixel Perfect) ---
 function exportPNG() {
-    const scale = 4; // 1px wall, 3px floor
+    const scale = 4;
     const w = grid.cols * scale + 1;
     const h = grid.rows * scale + 1;
     
@@ -504,7 +496,7 @@ function exportPNG() {
         if(!c.walls[2]) offCtx.fillRect(x, y+3, 3, 1);
     }
 
-    if(ui.export.solve.checked && solutionPath.length > 0) {
+    if(ui.output.solve && ui.output.solve.checked && solutionPath.length > 0) {
         offCtx.fillStyle = "red";
         for(let i=0; i<solutionPath.length; i++) {
             let c = solutionPath[i];
@@ -543,7 +535,8 @@ function showToast(msg) {
     setTimeout(()=>d.remove(), 3000);
 }
 
-ui.export.svg.onclick = exportSVG;
-ui.export.png.onclick = exportPNG;
+if(ui.output.svg) ui.output.svg.addEventListener('click', exportSVG);
+if(ui.output.png) ui.output.png.addEventListener('click', exportPNG);
 
+// Start
 init();

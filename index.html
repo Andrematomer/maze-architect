@@ -3,7 +3,6 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <!-- Dummy Favicon to prevent 404 in console -->
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🧩</text></svg>">
     <title>Maze Architect</title>
     <link rel="stylesheet" href="css/style.css">
@@ -19,13 +18,12 @@
             <div class="section hero">
                 <div class="row" style="align-items: center;">
                     <div class="col">
-                        <label>Columns (X)</label>
+                        <label for="inp-cols">Columns (X)</label>
                         <input type="number" id="inp-cols" value="20" min="2" max="200">
                     </div>
-                    <!-- Chain Link Button -->
                     <button id="btn-lock-ratio" class="btn-icon" title="Lock Aspect Ratio">🔗</button>
                     <div class="col">
-                        <label>Rows (Y)</label>
+                        <label for="inp-rows">Rows (Y)</label>
                         <input type="number" id="inp-rows" value="20" min="2" max="200">
                     </div>
                 </div>
@@ -33,12 +31,12 @@
                 <div class="status-bar" id="status-text">Ready</div>
             </div>
 
-            <!-- Advanced Section (Collapsed by default) -->
+            <!-- Advanced Section -->
             <details class="advanced-panel">
                 <summary>Advanced Configuration</summary>
                 
                 <div class="section">
-                    <label>Algorithm</label>
+                    <label for="sel-algo">Algorithm</label>
                     <select id="sel-algo">
                         <option value="dfs" selected>Recursive Backtracker (River-like)</option>
                         <option value="huntkill">Hunt & Kill (Winding, prevents stack overflow)</option>
@@ -54,13 +52,12 @@
                 </div>
 
                 <div class="section">
-                    <label>Generation Speed: <span id="lbl-speed">Fast</span></label>
+                    <label for="inp-speed">Generation Speed: <span id="lbl-speed">Fast</span></label>
                     <input type="range" id="inp-speed" min="1" max="100" value="95">
                 </div>
 
                 <hr class="divider">
 
-                <!-- Custom Path Tool -->
                 <div class="section tool-box">
                     <label>Pre-Draw Custom Path</label>
                     <div class="btn-group">
@@ -75,16 +72,14 @@
 
                 <hr class="divider">
 
-                <!-- Post Processing -->
                 <div class="section">
-                    <label>Erase Walls (Create Loops)</label>
+                    <label for="inp-loops">Erase Walls (Create Loops)</label>
                     <input type="range" id="inp-loops" min="0" max="50" value="0">
                     <p class="description">Erases: <span id="lbl-loops">0%</span> of internal walls.</p>
                 </div>
 
                 <hr class="divider">
 
-                <!-- Solution & Export -->
                 <div class="section">
                     <label>Solution & Export Options</label>
                     
@@ -97,7 +92,7 @@
 
                     <div class="row">
                         <div class="col">
-                            <label>Solution Line Corners</label>
+                            <label for="sel-join">Solution Line Corners</label>
                             <select id="sel-join">
                                 <option value="miter">Sharp (Miter)</option>
                                 <option value="round" selected>Round</option>
@@ -114,14 +109,12 @@
             </details>
         </aside>
 
-        <!-- Display Area -->
         <main class="viewport" id="viewport">
             <canvas id="canvas"></canvas>
             <div id="toast-container"></div>
         </main>
     </div>
 
-    <!-- Scripts -->
     <script type="module" src="js/main.js"></script>
 </body>
 </html>
