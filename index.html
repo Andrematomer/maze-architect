@@ -8,12 +8,13 @@
     <link rel="stylesheet" href="css/style.css">
     <style>
         #canvas { touch-action: none; cursor: crosshair; }
-        option[value="aldous"] { color: var(--danger); font-weight: bold; }
+        option.slow-warn { color: var(--danger); font-weight: bold; }
     </style>
 </head>
 <body>
 
     <div class="app-container">
+        <!-- Sidebar -->
         <aside class="sidebar">
             <h1 class="brand">Maze Architect</h1>
             
@@ -35,17 +36,22 @@
                 <div class="section" style="margin-top: 5px;">
                     <label for="inp-speed" style="display: flex; justify-content: space-between;">
                         <span>Generation Speed</span>
-                        <span id="lbl-speed" style="color: var(--primary);">Fast</span>
+                        <span id="lbl-speed" style="color: var(--primary);">Normal</span>
                     </label>
-                    <input type="range" id="inp-speed" min="0" max="100" value="90">
-                    
-                    <div class="checkbox-row" style="margin-top: 5px;">
-                        <input type="checkbox" id="chk-no-emoji"> 
-                        <label for="chk-no-emoji" style="cursor:pointer; color:#aaa;">Hide generation emojis</label>
-                    </div>
+                    <input type="range" id="inp-speed" min="0" max="100" value="50">
                 </div>
 
-                <div class="status-bar" id="status-text" style="margin-top: -5px;">Ready</div>
+                <!-- Status & Monkey Toggle Row -->
+                <div class="status-row">
+                    <div class="status-bar">
+                        <span style="color: var(--primary); font-weight: bold;">Status:</span> 
+                        <span id="status-text">Ready</span>
+                    </div>
+                    <div class="checkbox-row" style="margin: 0;">
+                        <input type="checkbox" id="chk-emoji" checked> 
+                        <label for="chk-emoji" style="cursor:pointer; font-size: 1.2rem; margin-top:-2px;" title="Toggle Generation Emojis">🐒</label>
+                    </div>
+                </div>
             </div>
 
             <hr class="divider">
@@ -58,12 +64,12 @@
                     <option value="huntkill">Hunt & Kill (Winding)</option>
                     <option value="prims">Randomized Prim's (Short branches)</option>
                     <option value="kruskal">Randomized Kruskal's (Puzzle-like)</option>
-                    <option value="wilson">Wilson's (Loop-Erased)</option>
                     <option value="division" class="incompatible">Recursive Division (Blocky)</option>
-                    <option value="eller" class="incompatible">Eller's (Infinite scroll)</option>
+                    <option value="eller" class="incompatible">Eller's (Infinite scroll, fast 🚀)</option>
                     <option value="sidewinder" class="incompatible">Sidewinder (Wind-swept)</option>
                     <option value="binary" class="incompatible">Binary Tree (Diagonal bias)</option>
-                    <option value="aldous">Aldous-Broder (random walk, slow)</option>
+                    <option value="wilson" class="slow-warn">Wilson's (Loop-Erased, slow 🐢)</option>
+                    <option value="aldous" class="slow-warn">Aldous-Broder (random walk, slow 💀)</option>
                 </select>
             </div>
 
@@ -85,7 +91,7 @@
             </div>
 
             <div id="ui-draw" class="section hidden">
-                <p class="description" style="color:#aaa;">Click and drag backwards from the <strong>green circle</strong> to adjust the path.</p>
+                <p class="description" style="color:#aaa;">Click and drag backwards from the <strong>blue circle</strong> to adjust the path.</p>
                 <p class="description warning" id="draw-warning" style="margin-top: 5px;">Algorithm locked to Kruskal's for custom paths.</p>
                 <button id="btn-tool-clear" class="btn-tool" style="width: 100%; margin-top: 5px;">🗑️ Clear Sample Path</button>
             </div>
@@ -93,7 +99,7 @@
             <hr class="divider">
 
             <!-- Export -->
-            <div class="section">
+            <div class="section export-section">
                 <label style="color: var(--primary); font-size: 1rem;">Export Options</label>
 
                 <div class="checkbox-row" style="margin: 5px 0;">
@@ -110,9 +116,12 @@
                     </label>
                 </div>
                 
-                <div class="btn-group" style="margin-top: 10px;">
-                    <button id="btn-exp-svg" style="border: 1px solid var(--primary);">Download SVG</button>
-                    <button id="btn-exp-png" style="border: 1px solid var(--primary);">Download PNG</button>
+                <div class="export-buttons" style="margin-top: 10px;">
+                    <div class="row">
+                        <button id="btn-exp-svg" class="btn-outline">Download SVG</button>
+                        <button id="btn-exp-png-highres" class="btn-outline">Download PNG</button>
+                    </div>
+                    <button id="btn-exp-png-pixel" class="btn-outline" style="margin-top: 5px; width: 100%;">Download Pixel-Perfect PNG</button>
                 </div>
             </div>
 
