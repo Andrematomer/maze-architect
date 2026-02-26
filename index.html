@@ -7,7 +7,6 @@
     <title>Maze Architect</title>
     <link rel="stylesheet" href="css/style.css">
     <style>
-        /* Vital for touch/pen drawing - stops mobile screen scrolling */
         #canvas { touch-action: none; cursor: crosshair; }
     </style>
 </head>
@@ -22,7 +21,6 @@
                 <div class="row" style="align-items: center;">
                     <div class="col">
                         <label for="inp-cols">Columns (X)</label>
-                        <!-- Notice we removed max="200" from HTML to handle limits in JS -->
                         <input type="number" id="inp-cols" value="20" min="2">
                     </div>
                     <button id="btn-lock-ratio" class="btn-icon" title="Lock Aspect Ratio">🔗</button>
@@ -39,7 +37,7 @@
                         <span>Generation Speed</span>
                         <span id="lbl-speed" style="color: var(--primary);">Fast</span>
                     </label>
-                    <input type="range" id="inp-speed" min="1" max="100" value="98">
+                    <input type="range" id="inp-speed" min="1" max="100" value="90">
                 </div>
 
                 <div class="status-bar" id="status-text" style="margin-top: -5px;">Ready</div>
@@ -49,18 +47,18 @@
 
             <!-- Core Config -->
             <div class="section">
-                <label for="sel-algo">Algorithm</label>
-                <select id="sel-algo">
+                <label for="sel-algo" style="color: var(--primary); font-size: 1rem;">Algorithm</label>
+                <select id="sel-algo" style="border-color: var(--primary);">
                     <option value="dfs" selected>Recursive Backtracker (River-like)</option>
                     <option value="huntkill">Hunt & Kill (Winding)</option>
                     <option value="prims">Randomized Prim's (Short branches)</option>
                     <option value="kruskal">Randomized Kruskal's (Puzzle-like)</option>
-                    <option value="aldous">Aldous-Broder (Random Walk)</option>
                     <option value="wilson">Wilson's (Loop-Erased)</option>
                     <option value="division" class="incompatible">Recursive Division (Blocky)</option>
                     <option value="eller" class="incompatible">Eller's (Infinite scroll)</option>
                     <option value="sidewinder" class="incompatible">Sidewinder (Wind-swept)</option>
                     <option value="binary" class="incompatible">Binary Tree (Diagonal bias)</option>
+                    <option value="aldous">Aldous-Broder (Extremely Slow)</option>
                 </select>
             </div>
 
@@ -74,7 +72,7 @@
 
             <!-- Maze Modes -->
             <div class="section">
-                <label for="sel-mode" style="color: var(--primary); font-size: 1rem;">Maze Mode</label>
+                <label for="sel-mode" style="color: var(--primary); font-size: 1rem;">Solver Mode</label>
                 <select id="sel-mode" style="border-color: var(--primary);">
                     <option value="none" selected>Standard (None)</option>
                     <option value="auto">Automatic Solve (🐒 & 🍌)</option>
@@ -84,7 +82,7 @@
 
             <!-- Draw UI (Hidden by default) -->
             <div id="ui-draw" class="section hidden">
-                <p class="description" style="color:#aaa;">Click and drag from the start to snake a path. Drag backwards to undo.</p>
+                <p class="description" style="color:#aaa;">Click and drag from the red arrowhead to snake a path. Drag backwards to undo.</p>
                 <button id="btn-tool-clear" class="btn-tool" style="width: 100%;">🗑️ Clear Custom Path</button>
             </div>
 
@@ -92,29 +90,25 @@
 
             <!-- Export -->
             <div class="section">
-                <label>Export Options</label>
+                <label style="color: var(--primary); font-size: 1rem;">Export Options</label>
 
-                <div class="checkbox-row" style="margin-bottom: 5px;">
+                <div class="checkbox-row" style="margin: 5px 0;">
                     <input type="checkbox" id="chk-simplify" checked> 
                     <label for="chk-simplify" style="cursor:pointer;" title="Combines straight walls into single lines. Best for Plotters.">
                         Simplify SVG Paths
                     </label>
                 </div>
-
-                <div class="row" style="margin-top: 5px;">
-                    <div class="col">
-                        <label for="sel-join">Export Line Style</label>
-                        <select id="sel-join">
-                            <option value="miter">Sharp (Miter)</option>
-                            <option value="round" selected>Round</option>
-                            <option value="bevel">Cut (Bevel)</option>
-                        </select>
-                    </div>
+                
+                <div class="checkbox-row" style="margin-bottom: 5px;">
+                    <input type="checkbox" id="chk-round" checked> 
+                    <label for="chk-round" style="cursor:pointer;" title="Applies round corners to the solution line.">
+                        Round Path Ends & Corners
+                    </label>
                 </div>
                 
                 <div class="btn-group" style="margin-top: 10px;">
-                    <button id="btn-exp-svg">Download SVG</button>
-                    <button id="btn-exp-png">Download PNG</button>
+                    <button id="btn-exp-svg" style="border: 1px solid var(--primary);">Download SVG</button>
+                    <button id="btn-exp-png" style="border: 1px solid var(--primary);">Download PNG</button>
                 </div>
             </div>
 

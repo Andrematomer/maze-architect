@@ -20,7 +20,7 @@ const ui = {
     output: { 
         svg: document.getElementById('btn-exp-svg'),
         png: document.getElementById('btn-exp-png'),
-        join: document.getElementById('sel-join'),
+        round: document.getElementById('chk-round'),
         simplify: document.getElementById('chk-simplify')
     }
 };
@@ -39,16 +39,19 @@ let lockedRatio = 1;
 let oldCols = 20;
 let oldRows = 20;
 
-let startCoords = {i: 0, j: 0};
-let goalCoords = {i: 1, j: 1}; 
+let startCoords = {i: -1, j: 0}; 
+let goalCoords = {i: 20, j: 19}; 
 let draggingNode = null; 
 let isDrawingSnake = false;
 let solutionPath = [];
 
+// Emoji Gen Head
+let genHead = null; 
+let genDir = 'down'; // 'up', 'down', 'left', 'right'
+
 let originalWalls = [];
 let removableWallPool = [];
 
-// Grid Wall Adder (for Undo)
 Grid.prototype.addWall = function(a, b) {
     if(a.isBoundary || b.isBoundary) return; 
     let x = a.i - b.i;
@@ -74,20 +77,23 @@ function resize() {
 }
 
 function setupGrid() {
-    let cols = parseInt(ui.cols.value);
-    let rows = parseInt(ui.rows.value);
+    let cols = parseInt(ui.cols.value) || 20;
+    let rows = parseInt(ui.rows.value) || 20;
 
     grid = new Grid(cols, rows);
-    startCoords = {i: 0, j: 0};
-    goalCoords = {i: cols-1, j: rows-1};
+    
+    // Default: Doors outside, middle left and right
+    startCoords = {i: -1, j: Math.floor(rows/2)};
+    goalCoords = {i: cols, j: Math.floor(rows/2)};
+    
     solutionPath = [];
     customPathPoints = [];
     originalWalls = [];
     removableWallPool = [];
+    genHead = null;
     draw();
 }
 
-// --- DOORS / BOUNDARY LOGIC ---
 function isBoundaryOpen(i, j, wallIndex) {
     const checkTarget = (ti, tj) => {
         if(ui.mode.value === 'auto') {
@@ -145,11 +151,12 @@ function draw() {
         }
     });
 
-    const joinStyle = ui.output.join.value;
+    const isRound = ui.output.round.checked;
+    const lineCapJoin = isRound ? 'round' : 'square';
 
     ctx.strokeStyle = "#000";
-    ctx.lineCap = joinStyle === 'round' ? 'round' : 'square';
-    ctx.lineJoin = joinStyle;
+    ctx.lineCap = lineCapJoin;
+    ctx.lineJoin = isRound ? 'round' : 'miter';
     ctx.lineWidth = Math.max(1, Math.floor(cellSize/10));
     ctx.beginPath();
     for(let c of grid.cells) {
@@ -168,8 +175,8 @@ function draw() {
     if (activePath.length > 0 && (!isGenerating || ui.mode.value === 'draw')) {
         ctx.strokeStyle = "red";
         ctx.lineWidth = Math.max(2, cellSize / 4);
-        ctx.lineJoin = joinStyle;
-        ctx.lineCap = joinStyle === 'round' ? 'round' : 'square';
+        ctx.lineJoin = isRound ? 'round' : 'miter';
+        ctx.lineCap = isRound ? 'round' : 'square';
         ctx.beginPath();
         let start = activePath[0];
         ctx.moveTo(offsetX + start.i*cellSize + cellSize/2, offsetY + start.j*cellSize + cellSize/2);
@@ -178,6 +185,15 @@ function draw() {
             ctx.lineTo(offsetX + p.i*cellSize + cellSize/2, offsetY + p.j*cellSize + cellSize/2);
         }
         ctx.stroke();
+
+        // Draw Arrowhead on last point for Draw mode
+        if (ui.mode.value === 'draw' && customPathPoints.length > 0) {
+            let last = customPathPoints[customPathPoints.length - 1];
+            ctx.fillStyle = "red";
+            ctx.beginPath();
+            ctx.arc(offsetX + last.i*cellSize + cellSize/2, offsetY + last.j*cellSize + cellSize/2, cellSize/5, 0, Math.PI*2);
+            ctx.fill();
+        }
     }
 
     if (ui.mode.value === 'auto' && !isGenerating) {
@@ -186,6 +202,17 @@ function draw() {
         ctx.textBaseline = "middle";
         ctx.fillText("🐒", offsetX + startCoords.i * cellSize + cellSize/2, offsetY + startCoords.j * cellSize + cellSize/2 + 2);
         ctx.fillText("🍌", offsetX + goalCoords.i * cellSize + cellSize/2, offsetY + goalCoords.j * cellSize + cellSize/2 + 2);
+    }
+
+    // Draw Generator Head Emoji
+    if (isGenerating && genHead && !genHead.isBoundary) {
+        ctx.font = `${Math.max(12, cellSize * 0.7)}px Arial`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        let emoji = '🧍';
+        if(genDir === 'left') emoji = '🚶';
+        if(genDir === 'right') emoji = '🚶‍♂️';
+        ctx.fillText(emoji, offsetX + genHead.i * cellSize + cellSize/2, offsetY + genHead.j * cellSize + cellSize/2 + 2);
     }
 }
 
@@ -290,24 +317,31 @@ async function generate() {
     };
 
     let stepCount = 0;
-    const checkPause = async () => {
+    const checkPause = async (headCell) => {
         if(myGenId !== currentGenId) throw "ABORT";
-        let speed = parseInt(ui.speed.value);
         
-        if (speed === 100) return; // Instant
+        // Update Generator Head Emoji Logic
+        if(headCell && genHead) {
+            if(headCell.i < genHead.i) genDir = 'left';
+            else if(headCell.i > genHead.i) genDir = 'right';
+            else genDir = 'down'; // Up or Down uses standing emoji for simplicity
+        }
+        genHead = headCell;
+
+        let speed = parseInt(ui.speed.value);
+        if (speed === 100) return; 
+        
         if (speed >= 90) {
-            // Remapped fast speeds (10 to 100 steps per frame)
             let stepsPerFrame = (speed - 89) * 10; 
             if(stepCount++ % stepsPerFrame === 0) await Algo.sleep(0); 
         } else {
-            // Visible delay
             let delay = (90 - speed) * 2;
             await Algo.sleep(delay);
         }
     };
 
     try {
-        await strategies[algoKey](grid, () => {
+        await strategies[algoKey](grid, (cell) => {
             let speed = parseInt(ui.speed.value);
             if(speed < 100 || Math.random() < 0.05) draw();
         }, checkPause);
@@ -326,6 +360,7 @@ async function generate() {
     removableWallPool.sort(() => Math.random() - 0.5); 
 
     isGenerating = false;
+    genHead = null;
     applyEraser(); 
     
     ui.status.innerText = "Done";
@@ -366,7 +401,6 @@ const validateAndApplySize = () => {
             c = oldCols; r = oldRows;
         }
     }
-    // Hard Canvas Memory Cap
     if (c > 482) c = 482;
     if (r > 482) r = 482;
 
@@ -394,34 +428,72 @@ ui.lock.addEventListener('click', () => {
 });
 
 // Mutex Mode
-const disableIncompatibleAlgos = (disable) => {
-    const forbidden = ['division', 'eller', 'sidewinder', 'binary'];
+const disableIncompatibleAlgos = (mode) => {
     Array.from(ui.algo.options).forEach(opt => {
-        if(forbidden.includes(opt.value)) {
-            opt.disabled = disable;
-            opt.hidden = disable; // Hides in modern dropdowns
+        if(mode === 'draw') {
+            // Draw mode only allows Prims and Kruskal
+            if(opt.value !== 'prims' && opt.value !== 'kruskal') {
+                opt.disabled = true;
+                opt.hidden = true;
+            } else {
+                opt.disabled = false;
+                opt.hidden = false;
+            }
+        } else {
+            // Normal mode allows all
+            opt.disabled = false;
+            opt.hidden = false;
         }
     });
-    if(disable && forbidden.includes(ui.algo.value)) {
-        ui.algo.value = 'dfs'; 
+
+    if(mode === 'draw' && ui.algo.value !== 'prims' && ui.algo.value !== 'kruskal') {
+        ui.algo.value = 'prims'; 
     }
 };
+
+function generateRandomPathTemplate() {
+    customPathPoints = [];
+    let r = Math.floor(grid.rows / 2);
+    let curr = {i: -1, j: r, isBoundary: true};
+    customPathPoints.push(curr);
+    
+    let i = 0;
+    while(i < grid.cols) {
+        let cell = grid.getCell(i, curr.j);
+        customPathPoints.push(cell);
+        
+        // Randomly jog up or down (1 step max per column to prevent intersections)
+        let jog = Math.random();
+        if(jog < 0.25 && curr.j > 1) { // Up
+            customPathPoints.push(grid.getCell(i, curr.j - 1));
+            curr.j--;
+        } else if (jog > 0.75 && curr.j < grid.rows - 2) { // Down
+            customPathPoints.push(grid.getCell(i, curr.j + 1));
+            curr.j++;
+        }
+        
+        curr.i = i;
+        i++;
+    }
+    customPathPoints.push({i: grid.cols, j: curr.j, isBoundary: true});
+}
 
 ui.mode.addEventListener('change', () => {
     const val = ui.mode.value;
     
-    // Reset States
     customPathPoints = [];
     solutionPath = [];
     ui.uiDraw.classList.add('hidden');
-    disableIncompatibleAlgos(false);
     
     if (val === 'draw') {
         ui.uiDraw.classList.remove('hidden');
-        disableIncompatibleAlgos(true);
+        disableIncompatibleAlgos('draw');
+        generateRandomPathTemplate();
+        draw();
+    } else {
+        disableIncompatibleAlgos('none');
+        setupGrid(); 
     }
-    
-    setupGrid(); 
 });
 
 ui.btnClearPath.addEventListener('click', () => { 
@@ -429,7 +501,7 @@ ui.btnClearPath.addEventListener('click', () => {
     setupGrid(); 
 });
 
-ui.output.join.addEventListener('change', draw);
+ui.output.round.addEventListener('change', draw);
 ui.loops.addEventListener('input', applyEraser);
 ui.btnGen.addEventListener('click', generate);
 ui.speed.addEventListener('input', (e) => { 
@@ -447,7 +519,6 @@ function getPointerCell(e) {
 
     if (i >= 0 && i < grid.cols && j >= 0 && j < grid.rows) return grid.getCell(i, j);
 
-    // 1 Step Outside Boundary
     if (i === -1 && j >= 0 && j < grid.rows) return {i, j, isBoundary: true};
     if (i === grid.cols && j >= 0 && j < grid.rows) return {i, j, isBoundary: true};
     if (j === -1 && i >= 0 && i < grid.cols) return {i, j, isBoundary: true};
@@ -459,6 +530,7 @@ function getPointerCell(e) {
 canvas.addEventListener('pointerdown', (e) => {
     const cell = getPointerCell(e);
     if(!cell) return;
+    canvas.setPointerCapture(e.pointerId);
 
     if(ui.mode.value === 'auto') {
         if(cell.i === startCoords.i && cell.j === startCoords.j) { draggingNode = 'start'; return; }
@@ -472,16 +544,9 @@ canvas.addEventListener('pointerdown', (e) => {
             if(!cell.isBoundary) cell.isCustomPath = true;
             draw();
         } else {
-            // Check if clicked the head to continue drawing
+            // STRICT: Must click exact head to continue drawing
             let head = customPathPoints[customPathPoints.length-1];
             if(cell.i === head.i && cell.j === head.j) {
-                isDrawingSnake = true;
-            } else {
-                // Clicked elsewhere - start fresh
-                customPathPoints = [cell];
-                grid.cells.forEach(c => c.isCustomPath = false);
-                if(!cell.isBoundary) cell.isCustomPath = true;
-                draw();
                 isDrawingSnake = true;
             }
         }
@@ -489,15 +554,15 @@ canvas.addEventListener('pointerdown', (e) => {
 });
 
 canvas.addEventListener('pointermove', (e) => {
-    // Prevent default touch scrolling
     if (e.pointerType === 'touch') e.preventDefault(); 
     
     const cell = getPointerCell(e);
     if(!cell) return;
 
     if(draggingNode && ui.mode.value === 'auto') {
-        if(draggingNode === 'start') startCoords = {i: cell.i, j: cell.j};
-        else goalCoords = {i: cell.i, j: cell.j};
+        // Prevent Emoji Collision
+        if(draggingNode === 'start' && (cell.i !== goalCoords.i || cell.j !== goalCoords.j)) startCoords = {i: cell.i, j: cell.j};
+        else if(draggingNode === 'goal' && (cell.i !== startCoords.i || cell.j !== startCoords.j)) goalCoords = {i: cell.i, j: cell.j};
         solveMaze();
         draw();
         return;
@@ -507,10 +572,8 @@ canvas.addEventListener('pointermove', (e) => {
         let head = customPathPoints[customPathPoints.length-1];
         if(cell.i === head.i && cell.j === head.j) return; 
 
-        // Enforce Manhattan Distance (1 block up/down/left/right)
         let dist = Math.abs(cell.i - head.i) + Math.abs(cell.j - head.j);
         if(dist === 1) {
-            // Undo Check (Moving backwards)
             if(customPathPoints.length > 1) {
                 let neck = customPathPoints[customPathPoints.length-2];
                 if(cell.i === neck.i && cell.j === neck.j) {
@@ -522,12 +585,9 @@ canvas.addEventListener('pointermove', (e) => {
                 }
             }
             
-            // Self-intersection Check
             if(customPathPoints.some(p => p.i === cell.i && p.j === cell.j)) return;
-            // Boundary-to-Boundary Check
             if(cell.isBoundary && head.isBoundary) return;
 
-            // Draw Forward
             customPathPoints.push(cell);
             if(!cell.isBoundary) cell.isCustomPath = true;
             if(!cell.isBoundary && !head.isBoundary) grid.removeWall(head, cell);
@@ -543,7 +603,9 @@ canvas.addEventListener('pointercancel', () => { draggingNode = null; isDrawingS
 function exportSVG() {
     const w = grid.cols * cellSize;
     const h = grid.rows * cellSize;
-    const joinStyle = ui.output.join.value;
+    const isRound = ui.output.round.checked;
+    const joinStyle = isRound ? 'round' : 'miter';
+    const capStyle = isRound ? 'round' : 'square';
     const doSimplify = ui.output.simplify.checked;
     let lines = [];
     
@@ -580,7 +642,6 @@ function exportSVG() {
         }
         if(startR !== -1) lines.push(`<line x1="${grid.cols*cellSize}" y1="${startR*cellSize}" x2="${grid.cols*cellSize}" y2="${grid.rows*cellSize}" />`);
     } else {
-        // Non-simplified: every cell writes its walls
         for(let c of grid.cells) {
             let x = c.i * cellSize, y = c.j * cellSize;
             if(c.walls[0] && !isBoundaryOpen(c.i, c.j, 0)) lines.push(`<line x1="${x}" y1="${y}" x2="${x+cellSize}" y2="${y}" />`);
@@ -595,10 +656,10 @@ function exportSVG() {
     
     if(activePath.length > 0) {
         let points = activePath.map(p => `${p.i*cellSize + cellSize/2},${p.j*cellSize + cellSize/2}`).join(" ");
-        solutionPoly = `<polyline points="${points}" stroke="red" stroke-width="${Math.max(2, cellSize/4)}" fill="none" stroke-linejoin="${joinStyle}" stroke-linecap="${joinStyle==='round'?'round':'square'}" opacity="0.8"/>`;
+        solutionPoly = `<polyline points="${points}" stroke="red" stroke-width="${Math.max(2, cellSize/4)}" fill="none" stroke-linejoin="${joinStyle}" stroke-linecap="${capStyle}" opacity="0.8"/>`;
     }
 
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}"><rect width="100%" height="100%" fill="white"/><g stroke="black" stroke-width="${Math.max(2, cellSize/10)}" stroke-linecap="${joinStyle==='round'?'round':'square'}" stroke-linejoin="${joinStyle}">${lines.join('\n')}</g>${solutionPoly}</svg>`;
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}"><rect width="100%" height="100%" fill="white"/><g stroke="black" stroke-width="${Math.max(2, cellSize/10)}" stroke-linecap="${capStyle}" stroke-linejoin="${joinStyle}">${lines.join('\n')}</g>${solutionPoly}</svg>`;
     download(`maze_${grid.cols}x${grid.rows}.svg`, svg, "image/svg+xml");
 }
 
