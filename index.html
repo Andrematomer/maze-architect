@@ -8,6 +8,8 @@
     <link rel="stylesheet" href="css/style.css">
     <style>
         #canvas { touch-action: none; cursor: crosshair; }
+        /* Colors the specific option red where browsers support it */
+        option[value="aldous"] { color: var(--danger); font-weight: bold; }
     </style>
 </head>
 <body>
@@ -58,7 +60,7 @@
                     <option value="eller" class="incompatible">Eller's (Infinite scroll)</option>
                     <option value="sidewinder" class="incompatible">Sidewinder (Wind-swept)</option>
                     <option value="binary" class="incompatible">Binary Tree (Diagonal bias)</option>
-                    <option value="aldous">Aldous-Broder (Extremely Slow)</option>
+                    <option value="aldous">Aldous-Broder (random walk, slow)</option>
                 </select>
             </div>
 
@@ -82,8 +84,8 @@
 
             <!-- Draw UI (Hidden by default) -->
             <div id="ui-draw" class="section hidden">
-                <p class="description" style="color:#aaa;">Click and drag from the red arrowhead to snake a path. Drag backwards to undo.</p>
-                <button id="btn-tool-clear" class="btn-tool" style="width: 100%;">🗑️ Clear Custom Path</button>
+                <p class="description" style="color:#aaa;">Click and drag backwards from the <strong>red arrowhead</strong> to adjust the path.</p>
+                <button id="btn-tool-clear" class="btn-tool" style="width: 100%; margin-top: 5px;">🗑️ Clear Sample Path</button>
             </div>
 
             <hr class="divider">

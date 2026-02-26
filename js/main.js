@@ -45,13 +45,13 @@ let draggingNode = null;
 let isDrawingSnake = false;
 let solutionPath = [];
 
-// Emoji Gen Head
 let genHead = null; 
-let genDir = 'down'; // 'up', 'down', 'left', 'right'
+let genMonkeyFaceRight = true; 
 
 let originalWalls = [];
 let removableWallPool = [];
 
+// Grid Wall Adder (for Undo)
 Grid.prototype.addWall = function(a, b) {
     if(a.isBoundary || b.isBoundary) return; 
     let x = a.i - b.i;
@@ -81,8 +81,6 @@ function setupGrid() {
     let rows = parseInt(ui.rows.value) || 20;
 
     grid = new Grid(cols, rows);
-    
-    // Default: Doors outside, middle left and right
     startCoords = {i: -1, j: Math.floor(rows/2)};
     goalCoords = {i: cols, j: Math.floor(rows/2)};
     
@@ -112,6 +110,18 @@ function isBoundaryOpen(i, j, wallIndex) {
     if (wallIndex === 3 && i === 0) return checkTarget(-1, j); 
     
     return false;
+}
+
+// Helper to draw flipped monkey
+function drawMonkey(x, y, faceRight, size) {
+    ctx.font = `${size}px Arial`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.save();
+    ctx.translate(x, y);
+    if (faceRight) ctx.scale(-1, 1);
+    ctx.fillText("🐒", 0, 2);
+    ctx.restore();
 }
 
 // --- DRAWING ---
@@ -186,33 +196,37 @@ function draw() {
         }
         ctx.stroke();
 
-        // Draw Arrowhead on last point for Draw mode
+        // Draw Arrowhead (1.5x larger)
         if (ui.mode.value === 'draw' && customPathPoints.length > 0) {
             let last = customPathPoints[customPathPoints.length - 1];
             ctx.fillStyle = "red";
             ctx.beginPath();
-            ctx.arc(offsetX + last.i*cellSize + cellSize/2, offsetY + last.j*cellSize + cellSize/2, cellSize/5, 0, Math.PI*2);
+            ctx.arc(offsetX + last.i*cellSize + cellSize/2, offsetY + last.j*cellSize + cellSize/2, cellSize/3, 0, Math.PI*2);
             ctx.fill();
         }
     }
 
     if (ui.mode.value === 'auto' && !isGenerating) {
+        // Determine Monkey flip direction based on first step
+        let monkeyFaceRight = true;
+        if(solutionPath.length > 1) {
+            let firstHoriz = solutionPath.find((p, idx) => idx > 0 && p.i !== solutionPath[idx-1].i);
+            if(firstHoriz) {
+                let prev = solutionPath[solutionPath.indexOf(firstHoriz) - 1];
+                monkeyFaceRight = firstHoriz.i > prev.i;
+            }
+        }
+        
+        drawMonkey(offsetX + startCoords.i * cellSize + cellSize/2, offsetY + startCoords.j * cellSize + cellSize/2, monkeyFaceRight, Math.max(12, cellSize * 0.7));
+        
         ctx.font = `${Math.max(12, cellSize * 0.7)}px Arial`;
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
-        ctx.fillText("🐒", offsetX + startCoords.i * cellSize + cellSize/2, offsetY + startCoords.j * cellSize + cellSize/2 + 2);
         ctx.fillText("🍌", offsetX + goalCoords.i * cellSize + cellSize/2, offsetY + goalCoords.j * cellSize + cellSize/2 + 2);
     }
 
-    // Draw Generator Head Emoji
     if (isGenerating && genHead && !genHead.isBoundary) {
-        ctx.font = `${Math.max(12, cellSize * 0.7)}px Arial`;
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        let emoji = '🧍';
-        if(genDir === 'left') emoji = '🚶';
-        if(genDir === 'right') emoji = '🚶‍♂️';
-        ctx.fillText(emoji, offsetX + genHead.i * cellSize + cellSize/2, offsetY + genHead.j * cellSize + cellSize/2 + 2);
+        drawMonkey(offsetX + genHead.i * cellSize + cellSize/2, offsetY + genHead.j * cellSize + cellSize/2, genMonkeyFaceRight, Math.max(12, cellSize * 0.7));
     }
 }
 
@@ -320,11 +334,9 @@ async function generate() {
     const checkPause = async (headCell) => {
         if(myGenId !== currentGenId) throw "ABORT";
         
-        // Update Generator Head Emoji Logic
         if(headCell && genHead) {
-            if(headCell.i < genHead.i) genDir = 'left';
-            else if(headCell.i > genHead.i) genDir = 'right';
-            else genDir = 'down'; // Up or Down uses standing emoji for simplicity
+            if(headCell.i < genHead.i) genMonkeyFaceRight = false;
+            else if(headCell.i > genHead.i) genMonkeyFaceRight = true;
         }
         genHead = headCell;
 
@@ -341,7 +353,7 @@ async function generate() {
     };
 
     try {
-        await strategies[algoKey](grid, (cell) => {
+        await strategies[algoKey](grid, () => {
             let speed = parseInt(ui.speed.value);
             if(speed < 100 || Math.random() < 0.05) draw();
         }, checkPause);
@@ -368,6 +380,17 @@ async function generate() {
     ui.btnGen.classList.remove('active');
 }
 
+// Helper to determine if a vertex has >= 2 connections (to prevent 2x2 empty rooms)
+function getVertexDegree(vx, vy) {
+    if (vx <= 0 || vx >= grid.cols || vy <= 0 || vy >= grid.rows) return 99; // Outer bounds always solid
+    let degree = 0;
+    if (grid.getCell(vx - 1, vy - 1).walls[1]) degree++; // Above
+    if (grid.getCell(vx - 1, vy).walls[1]) degree++;     // Below
+    if (grid.getCell(vx - 1, vy - 1).walls[2]) degree++; // Left
+    if (grid.getCell(vx, vy - 1).walls[2]) degree++;     // Right
+    return degree;
+}
+
 function applyEraser() {
     if(originalWalls.length === 0) return;
 
@@ -376,11 +399,29 @@ function applyEraser() {
     let percent = parseInt(ui.loops.value);
     document.getElementById('lbl-loops').innerText = percent + "%";
     
-    let limit = Math.floor(removableWallPool.length * (percent / 100));
-    for(let i=0; i<limit; i++) {
+    let targetRemoveCount = Math.floor(removableWallPool.length * (percent / 100));
+    let removed = 0;
+
+    for(let i = 0; i < removableWallPool.length && removed < targetRemoveCount; i++) {
         let p = removableWallPool[i];
-        p.c1.walls[p.w1] = false;
-        p.c2.walls[p.w2] = false;
+        
+        // Smart Check: Prevent creating freestanding pillars / empty rooms
+        let safe = false;
+        if(p.w1 === 1) { // Vertical Wall
+            let topVX = p.c1.i + 1, topVY = p.c1.j;
+            let botVX = p.c1.i + 1, botVY = p.c1.j + 1;
+            if (getVertexDegree(topVX, topVY) > 1 && getVertexDegree(botVX, botVY) > 1) safe = true;
+        } else if (p.w1 === 2) { // Horizontal Wall
+            let leftVX = p.c1.i, leftVY = p.c1.j + 1;
+            let rightVX = p.c1.i + 1, rightVY = p.c1.j + 1;
+            if (getVertexDegree(leftVX, leftVY) > 1 && getVertexDegree(rightVX, rightVY) > 1) safe = true;
+        }
+
+        if (safe) {
+            p.c1.walls[p.w1] = false;
+            p.c2.walls[p.w2] = false;
+            removed++;
+        }
     }
     
     if(!isGenerating) solveMaze();
@@ -427,11 +468,10 @@ ui.lock.addEventListener('click', () => {
     if(isRatioLocked) lockedRatio = parseInt(ui.cols.value) / parseInt(ui.rows.value);
 });
 
-// Mutex Mode
 const disableIncompatibleAlgos = (mode) => {
+    const forbidden = ['division', 'eller', 'sidewinder', 'binary'];
     Array.from(ui.algo.options).forEach(opt => {
         if(mode === 'draw') {
-            // Draw mode only allows Prims and Kruskal
             if(opt.value !== 'prims' && opt.value !== 'kruskal') {
                 opt.disabled = true;
                 opt.hidden = true;
@@ -440,7 +480,6 @@ const disableIncompatibleAlgos = (mode) => {
                 opt.hidden = false;
             }
         } else {
-            // Normal mode allows all
             opt.disabled = false;
             opt.hidden = false;
         }
@@ -454,49 +493,66 @@ const disableIncompatibleAlgos = (mode) => {
 function generateRandomPathTemplate() {
     customPathPoints = [];
     let r = Math.floor(grid.rows / 2);
-    let curr = {i: -1, j: r, isBoundary: true};
+    let curr = {i: 0, j: r};
+    
+    // Start at left door
+    customPathPoints.push({i: -1, j: r, isBoundary: true});
     customPathPoints.push(curr);
     
-    let i = 0;
-    while(i < grid.cols) {
-        let cell = grid.getCell(i, curr.j);
-        customPathPoints.push(cell);
-        
-        // Randomly jog up or down (1 step max per column to prevent intersections)
-        let jog = Math.random();
-        if(jog < 0.25 && curr.j > 1) { // Up
-            customPathPoints.push(grid.getCell(i, curr.j - 1));
-            curr.j--;
-        } else if (jog > 0.75 && curr.j < grid.rows - 2) { // Down
-            customPathPoints.push(grid.getCell(i, curr.j + 1));
-            curr.j++;
+    let visited = new Set([`0,${r}`]);
+    
+    while(curr.i < grid.cols - 1) {
+        let moves = [];
+        // Up/Down is 3x more likely than Right
+        if(curr.j > 0 && !visited.has(`${curr.i},${curr.j-1}`)) moves.push({i: curr.i, j: curr.j-1, weight: 3});
+        if(curr.j < grid.rows - 1 && !visited.has(`${curr.i},${curr.j+1}`)) moves.push({i: curr.i, j: curr.j+1, weight: 3});
+        if(!visited.has(`${curr.i+1},${curr.j}`)) moves.push({i: curr.i+1, j: curr.j, weight: 1});
+
+        if(moves.length === 0) {
+            curr = {i: curr.i+1, j: curr.j};
+        } else {
+            let totalWeight = moves.reduce((s, m) => s + m.weight, 0);
+            let rnd = Math.random() * totalWeight;
+            for(let m of moves) {
+                if(rnd < m.weight) { curr = {i: m.i, j: m.j}; break; }
+                rnd -= m.weight;
+            }
         }
-        
-        curr.i = i;
-        i++;
+        visited.add(`${curr.i},${curr.j}`);
+        customPathPoints.push(curr);
     }
+    // End at right door
     customPathPoints.push({i: grid.cols, j: curr.j, isBoundary: true});
 }
 
+let lastMode = 'none';
 ui.mode.addEventListener('change', () => {
     const val = ui.mode.value;
-    
-    customPathPoints = [];
-    solutionPath = [];
-    ui.uiDraw.classList.add('hidden');
     
     if (val === 'draw') {
         ui.uiDraw.classList.remove('hidden');
         disableIncompatibleAlgos('draw');
+        setupGrid(); 
         generateRandomPathTemplate();
+        ui.btnClearPath.innerText = "🗑️ Clear Sample Path";
+        ui.btnClearPath.classList.add('btn-primary');
         draw();
     } else {
+        ui.uiDraw.classList.add('hidden');
         disableIncompatibleAlgos('none');
-        setupGrid(); 
+        if (lastMode === 'draw') {
+            setupGrid(); // Must reset grid physically if leaving draw mode
+        } else {
+            solveMaze();
+            draw();
+        }
     }
+    lastMode = val;
 });
 
 ui.btnClearPath.addEventListener('click', () => { 
+    ui.btnClearPath.innerText = "🗑️ Clear Custom Path";
+    ui.btnClearPath.classList.remove('btn-primary');
     customPathPoints = []; 
     setupGrid(); 
 });
@@ -544,7 +600,7 @@ canvas.addEventListener('pointerdown', (e) => {
             if(!cell.isBoundary) cell.isCustomPath = true;
             draw();
         } else {
-            // STRICT: Must click exact head to continue drawing
+            // STRICT: Must click exact head to continue drawing or undoing
             let head = customPathPoints[customPathPoints.length-1];
             if(cell.i === head.i && cell.j === head.j) {
                 isDrawingSnake = true;
@@ -560,7 +616,6 @@ canvas.addEventListener('pointermove', (e) => {
     if(!cell) return;
 
     if(draggingNode && ui.mode.value === 'auto') {
-        // Prevent Emoji Collision
         if(draggingNode === 'start' && (cell.i !== goalCoords.i || cell.j !== goalCoords.j)) startCoords = {i: cell.i, j: cell.j};
         else if(draggingNode === 'goal' && (cell.i !== startCoords.i || cell.j !== startCoords.j)) goalCoords = {i: cell.i, j: cell.j};
         solveMaze();
@@ -745,5 +800,4 @@ function showToast(msg) {
 ui.output.svg.addEventListener('click', exportSVG);
 ui.output.png.addEventListener('click', exportPNG);
 
-// Start
 init();
