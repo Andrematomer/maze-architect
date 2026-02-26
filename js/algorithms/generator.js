@@ -1,6 +1,5 @@
 export const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
-// 1. Recursive Backtracker (DFS)
 export async function algoDFS(grid, updateFn, checkPause) {
     let stack = [];
     let start = grid.cells.find(c => c.isCustomPath) || grid.cells[0];
@@ -8,8 +7,8 @@ export async function algoDFS(grid, updateFn, checkPause) {
     if(stack.length === 0) { start.visited = true; stack.push(start); }
 
     while (stack.length > 0) {
-        await checkPause();
         let current = stack[stack.length - 1];
+        await checkPause(current);
         let neighbors = grid.getUnvisitedNeighbors(current);
 
         if (neighbors.length > 0) {
@@ -25,7 +24,6 @@ export async function algoDFS(grid, updateFn, checkPause) {
     }
 }
 
-// 2. Prim's
 export async function algoPrims(grid, updateFn, checkPause) {
     let frontier = [];
     grid.cells.forEach(c => {
@@ -44,9 +42,9 @@ export async function algoPrims(grid, updateFn, checkPause) {
     }
 
     while (frontier.length > 0) {
-        await checkPause();
         let randIdx = Math.floor(Math.random() * frontier.length);
         let cell = frontier[randIdx];
+        await checkPause(cell);
         frontier.splice(randIdx, 1);
 
         let ns = [ grid.getCell(cell.i, cell.j-1), grid.getCell(cell.i+1, cell.j), grid.getCell(cell.i, cell.j+1), grid.getCell(cell.i-1, cell.j) ];
@@ -63,14 +61,13 @@ export async function algoPrims(grid, updateFn, checkPause) {
     }
 }
 
-// 3. Hunt and Kill
 export async function algoHuntKill(grid, updateFn, checkPause) {
     let current = grid.cells.find(c => c.isCustomPath) || grid.cells[0];
     grid.cells.forEach(c => { if(c.isCustomPath) c.visited = true; });
     current.visited = true;
 
     while (current) {
-        await checkPause();
+        await checkPause(current);
         let neighbors = grid.getUnvisitedNeighbors(current);
         if (neighbors.length > 0) {
             let next = neighbors[Math.floor(Math.random() * neighbors.length)];
@@ -97,10 +94,9 @@ export async function algoHuntKill(grid, updateFn, checkPause) {
     }
 }
 
-// 4. Binary Tree
 export async function algoBinary(grid, updateFn, checkPause) {
     for (let c of grid.cells) {
-        await checkPause();
+        await checkPause(c);
         let neighbors = [];
         let top = grid.getCell(c.i, c.j - 1);
         let right = grid.getCell(c.i + 1, c.j);
@@ -116,13 +112,12 @@ export async function algoBinary(grid, updateFn, checkPause) {
     }
 }
 
-// 5. Sidewinder
 export async function algoSidewinder(grid, updateFn, checkPause) {
     for (let j = 0; j < grid.rows; j++) {
         let run = [];
         for (let i = 0; i < grid.cols; i++) {
-            await checkPause();
             let cell = grid.getCell(i, j);
+            await checkPause(cell);
             run.push(cell);
             
             let atEastBound = (i === grid.cols - 1);
@@ -144,7 +139,6 @@ export async function algoSidewinder(grid, updateFn, checkPause) {
     }
 }
 
-// 6. Kruskal's
 export async function algoKruskal(grid, updateFn, checkPause) {
     let sets = new Array(grid.cells.length).fill(0).map((_, i) => i);
     let edges = [];
@@ -168,7 +162,7 @@ export async function algoKruskal(grid, updateFn, checkPause) {
     edges.sort(() => Math.random() - 0.5);
 
     for (let e of edges) {
-        await checkPause();
+        await checkPause(e.a);
         let idxA = grid.index(e.a.i, e.a.j);
         let idxB = grid.index(e.b.i, e.b.j);
         if (union(idxA, idxB)) {
@@ -178,7 +172,6 @@ export async function algoKruskal(grid, updateFn, checkPause) {
     }
 }
 
-// 7. Aldous-Broder
 export async function algoAldous(grid, updateFn, checkPause) {
     let current = grid.cells[Math.floor(Math.random() * grid.cells.length)];
     let unvisitedCount = grid.cells.length - 1;
@@ -188,7 +181,7 @@ export async function algoAldous(grid, updateFn, checkPause) {
     if(pathCount > 0) unvisitedCount -= pathCount; 
 
     while (unvisitedCount > 0) {
-        await checkPause();
+        await checkPause(current);
         let neighbors = [ grid.getCell(current.i, current.j-1), grid.getCell(current.i+1, current.j), grid.getCell(current.i, current.j+1), grid.getCell(current.i-1, current.j) ].filter(n => n !== null);
         let next = neighbors[Math.floor(Math.random() * neighbors.length)];
         
@@ -202,7 +195,43 @@ export async function algoAldous(grid, updateFn, checkPause) {
     }
 }
 
-// 8. Recursive Division
+export async function algoWilson(grid, updateFn, checkPause) {
+    let unvisited = grid.cells.slice();
+    let visited = [];
+    
+    let start = unvisited.splice(Math.floor(Math.random() * unvisited.length), 1)[0];
+    start.visited = true;
+    visited.push(start);
+    
+    while(unvisited.length > 0) {
+        let u = unvisited[Math.floor(Math.random() * unvisited.length)];
+        let path = [u];
+        let walking = true;
+        
+        while(walking) {
+            let curr = path[path.length-1];
+            await checkPause(curr);
+            let neighbors = [ grid.getCell(curr.i, curr.j-1), grid.getCell(curr.i+1, curr.j), grid.getCell(curr.i, curr.j+1), grid.getCell(curr.i-1, curr.j) ].filter(n => n !== null);
+            let next = neighbors[Math.floor(Math.random() * neighbors.length)];
+            
+            let index = path.indexOf(next);
+            if (index !== -1) path.splice(index + 1); 
+            else { path.push(next); if (next.visited) walking = false; }
+        }
+        
+        for(let i=0; i<path.length-1; i++) {
+            let a = path[i];
+            let b = path[i+1];
+            await checkPause(a);
+            grid.removeWall(a, b);
+            a.visited = true;
+            if(unvisited.includes(a)) unvisited.splice(unvisited.indexOf(a), 1);
+            visited.push(a);
+            updateFn();
+        }
+    }
+}
+
 export async function algoDivision(grid, updateFn, checkPause) {
     grid.cells.forEach(c => { c.walls = [false, false, false, false]; c.visited = true; });
     grid.cells.forEach(c => {
@@ -214,9 +243,8 @@ export async function algoDivision(grid, updateFn, checkPause) {
     updateFn(); 
 
     async function divide(x, y, w, h) {
-        await checkPause();
+        await checkPause(null);
         if (w < 2 || h < 2) return;
-
         let horizontal = Math.random() < 0.5;
         if (w > h) horizontal = false;
         if (h > w) horizontal = true;
@@ -250,13 +278,12 @@ export async function algoDivision(grid, updateFn, checkPause) {
     await divide(0, 0, grid.cols, grid.rows);
 }
 
-// 9. Eller's
 export async function algoEller(grid, updateFn, checkPause) {
     let rowSet = new Array(grid.cols).fill(0);
     let nextSetId = 1;
 
     for (let j = 0; j < grid.rows; j++) {
-        await checkPause();
+        await checkPause(null);
         for(let i=0; i<grid.cols; i++) {
             if(rowSet[i] === 0) rowSet[i] = nextSetId++;
             grid.getCell(i, j).visited = true;
@@ -299,47 +326,5 @@ export async function algoEller(grid, updateFn, checkPause) {
              }
         }
         updateFn();
-    }
-}
-
-// 10. Wilson's
-export async function algoWilson(grid, updateFn, checkPause) {
-    let unvisited = grid.cells.slice();
-    let visited = [];
-    
-    let start = unvisited.splice(Math.floor(Math.random() * unvisited.length), 1)[0];
-    start.visited = true;
-    visited.push(start);
-    
-    while(unvisited.length > 0) {
-        await checkPause();
-        let u = unvisited[Math.floor(Math.random() * unvisited.length)];
-        let path = [u];
-        let walking = true;
-        
-        while(walking) {
-            let curr = path[path.length-1];
-            let neighbors = [ grid.getCell(curr.i, curr.j-1), grid.getCell(curr.i+1, curr.j), grid.getCell(curr.i, curr.j+1), grid.getCell(curr.i-1, curr.j) ].filter(n => n !== null);
-            let next = neighbors[Math.floor(Math.random() * neighbors.length)];
-            
-            let index = path.indexOf(next);
-            if (index !== -1) {
-                path.splice(index + 1); 
-            } else {
-                path.push(next);
-                if (next.visited) walking = false;
-            }
-        }
-        
-        for(let i=0; i<path.length-1; i++) {
-            let a = path[i];
-            let b = path[i+1];
-            grid.removeWall(a, b);
-            a.visited = true;
-            if(unvisited.includes(a)) unvisited.splice(unvisited.indexOf(a), 1);
-            visited.push(a);
-            updateFn();
-            await checkPause();
-        }
     }
 }

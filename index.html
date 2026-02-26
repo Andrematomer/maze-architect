@@ -8,14 +8,12 @@
     <link rel="stylesheet" href="css/style.css">
     <style>
         #canvas { touch-action: none; cursor: crosshair; }
-        /* Colors the specific option red where browsers support it */
         option[value="aldous"] { color: var(--danger); font-weight: bold; }
     </style>
 </head>
 <body>
 
     <div class="app-container">
-        <!-- Sidebar -->
         <aside class="sidebar">
             <h1 class="brand">Maze Architect</h1>
             
@@ -67,7 +65,6 @@
             <div class="section">
                 <label for="inp-loops">Erase Walls (Create Loops)</label>
                 <input type="range" id="inp-loops" min="0" max="50" value="0">
-                <p class="description">Erases: <span id="lbl-loops">0%</span> of internal walls.</p>
             </div>
 
             <hr class="divider">
@@ -82,9 +79,9 @@
                 </select>
             </div>
 
-            <!-- Draw UI (Hidden by default) -->
             <div id="ui-draw" class="section hidden">
                 <p class="description" style="color:#aaa;">Click and drag backwards from the <strong>red arrowhead</strong> to adjust the path.</p>
+                <p class="description warning" id="draw-warning" style="margin-top: 5px;">Algorithm locked to Kruskal's for custom paths.</p>
                 <button id="btn-tool-clear" class="btn-tool" style="width: 100%; margin-top: 5px;">🗑️ Clear Sample Path</button>
             </div>
 

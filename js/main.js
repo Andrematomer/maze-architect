@@ -45,13 +45,15 @@ let draggingNode = null;
 let isDrawingSnake = false;
 let solutionPath = [];
 
+// Emoji Engine
 let genHead = null; 
+let lastGenHead = null;
 let genMonkeyFaceRight = true; 
+let transientEmojis = []; 
 
 let originalWalls = [];
 let removableWallPool = [];
 
-// Grid Wall Adder (for Undo)
 Grid.prototype.addWall = function(a, b) {
     if(a.isBoundary || b.isBoundary) return; 
     let x = a.i - b.i;
@@ -89,6 +91,7 @@ function setupGrid() {
     originalWalls = [];
     removableWallPool = [];
     genHead = null;
+    transientEmojis = [];
     draw();
 }
 
@@ -112,16 +115,17 @@ function isBoundaryOpen(i, j, wallIndex) {
     return false;
 }
 
-// Helper to draw flipped monkey
-function drawMonkey(x, y, faceRight, size) {
+function drawEmoji(emoji, x, y, size, faceRight = true, alpha = 1.0) {
+    ctx.globalAlpha = alpha;
     ctx.font = `${size}px Arial`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.save();
     ctx.translate(x, y);
-    if (faceRight) ctx.scale(-1, 1);
-    ctx.fillText("🐒", 0, 2);
+    if (!faceRight) ctx.scale(-1, 1);
+    ctx.fillText(emoji, 0, 2);
     ctx.restore();
+    ctx.globalAlpha = 1.0;
 }
 
 // --- DRAWING ---
@@ -196,37 +200,54 @@ function draw() {
         }
         ctx.stroke();
 
-        // Draw Arrowhead (1.5x larger)
+        // 1.5x Arrowhead
         if (ui.mode.value === 'draw' && customPathPoints.length > 0) {
             let last = customPathPoints[customPathPoints.length - 1];
             ctx.fillStyle = "red";
             ctx.beginPath();
-            ctx.arc(offsetX + last.i*cellSize + cellSize/2, offsetY + last.j*cellSize + cellSize/2, cellSize/3, 0, Math.PI*2);
+            ctx.arc(offsetX + last.i*cellSize + cellSize/2, offsetY + last.j*cellSize + cellSize/2, cellSize/2, 0, Math.PI*2);
             ctx.fill();
         }
     }
 
+    // Static Solve Emojis
     if (ui.mode.value === 'auto' && !isGenerating) {
-        // Determine Monkey flip direction based on first step
         let monkeyFaceRight = true;
         if(solutionPath.length > 1) {
             let firstHoriz = solutionPath.find((p, idx) => idx > 0 && p.i !== solutionPath[idx-1].i);
             if(firstHoriz) {
                 let prev = solutionPath[solutionPath.indexOf(firstHoriz) - 1];
                 monkeyFaceRight = firstHoriz.i > prev.i;
+            } else {
+                monkeyFaceRight = false; // vertical line defaults to left face
             }
         }
         
-        drawMonkey(offsetX + startCoords.i * cellSize + cellSize/2, offsetY + startCoords.j * cellSize + cellSize/2, monkeyFaceRight, Math.max(12, cellSize * 0.7));
-        
-        ctx.font = `${Math.max(12, cellSize * 0.7)}px Arial`;
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        ctx.fillText("🍌", offsetX + goalCoords.i * cellSize + cellSize/2, offsetY + goalCoords.j * cellSize + cellSize/2 + 2);
+        let sX = offsetX + startCoords.i * cellSize + cellSize/2;
+        let sY = offsetY + startCoords.j * cellSize + cellSize/2;
+        let gX = offsetX + goalCoords.i * cellSize + cellSize/2;
+        let gY = offsetY + goalCoords.j * cellSize + cellSize/2;
+        let eSize = Math.max(12, cellSize * 0.7);
+
+        drawEmoji("🐒", sX, sY, eSize, monkeyFaceRight);
+        drawEmoji("🍌", gX, gY, eSize, true);
     }
 
-    if (isGenerating && genHead && !genHead.isBoundary) {
-        drawMonkey(offsetX + genHead.i * cellSize + cellSize/2, offsetY + genHead.j * cellSize + cellSize/2, genMonkeyFaceRight, Math.max(12, cellSize * 0.7));
+    // Generation Animation Emojis
+    if (isGenerating && parseInt(ui.speed.value) < 100) {
+        let eSize = Math.max(12, cellSize * 0.7);
+        const algo = ui.algo.value;
+
+        transientEmojis.forEach(e => {
+            let x = offsetX + e.i * cellSize + cellSize/2;
+            let y = offsetY + e.j * cellSize + cellSize/2;
+            let faceRight = (e.type === '🛬' || e.type === '✨') ? genMonkeyFaceRight : !genMonkeyFaceRight; 
+            drawEmoji(e.type, x, y, eSize, faceRight, e.life / 5.0);
+        });
+
+        if (genHead && !genHead.isBoundary && !['prims', 'kruskal', 'division', 'eller'].includes(algo)) {
+            drawEmoji("🐒", offsetX + genHead.i * cellSize + cellSize/2, offsetY + genHead.j * cellSize + cellSize/2, eSize, genMonkeyFaceRight);
+        }
     }
 }
 
@@ -253,13 +274,10 @@ function solveMaze() {
         
         if(node.i === 0 && startCoords.i === -1 && startCoords.j === node.j) ns.push({i: -1, j: node.j, isBoundary:true});
         if(node.i === 0 && goalCoords.i === -1 && goalCoords.j === node.j) ns.push({i: -1, j: node.j, isBoundary:true});
-        
         if(node.i === grid.cols-1 && startCoords.i === grid.cols && startCoords.j === node.j) ns.push({i: grid.cols, j: node.j, isBoundary:true});
         if(node.i === grid.cols-1 && goalCoords.i === grid.cols && goalCoords.j === node.j) ns.push({i: grid.cols, j: node.j, isBoundary:true});
-
         if(node.j === 0 && startCoords.j === -1 && startCoords.i === node.i) ns.push({i: node.i, j: -1, isBoundary:true});
         if(node.j === 0 && goalCoords.j === -1 && goalCoords.i === node.i) ns.push({i: node.i, j: -1, isBoundary:true});
-
         if(node.j === grid.rows-1 && startCoords.j === grid.rows && startCoords.i === node.i) ns.push({i: node.i, j: grid.rows, isBoundary:true});
         if(node.j === grid.rows-1 && goalCoords.j === grid.rows && goalCoords.i === node.i) ns.push({i: node.i, j: grid.rows, isBoundary:true});
 
@@ -314,9 +332,16 @@ async function generate() {
     });
 
     if(ui.mode.value === 'draw' && oldPath.length > 0) {
-        for(let i=0; i<oldPath.length-1; i++) {
-            let a = oldPath[i];
-            let b = oldPath[i+1];
+        let mappedPath = [];
+        oldPath.forEach(p => {
+            if(p.isBoundary) mappedPath.push(p);
+            else mappedPath.push(grid.getCell(p.i, p.j));
+        });
+        customPathPoints = mappedPath;
+
+        for(let i=0; i<mappedPath.length-1; i++) {
+            let a = mappedPath[i];
+            let b = mappedPath[i+1];
             if(!a.isBoundary) a.isCustomPath = true; 
             if(!b.isBoundary) b.isCustomPath = true;
             if(!a.isBoundary && !b.isBoundary) grid.removeWall(a, b);
@@ -333,16 +358,29 @@ async function generate() {
     let stepCount = 0;
     const checkPause = async (headCell) => {
         if(myGenId !== currentGenId) throw "ABORT";
-        
-        if(headCell && genHead) {
-            if(headCell.i < genHead.i) genMonkeyFaceRight = false;
-            else if(headCell.i > genHead.i) genMonkeyFaceRight = true;
-        }
-        genHead = headCell;
-
         let speed = parseInt(ui.speed.value);
         if (speed === 100) return; 
         
+        // Handle Emojis
+        transientEmojis.forEach(e => e.life--);
+        transientEmojis = transientEmojis.filter(e => e.life > 0);
+
+        if(headCell) {
+            if (['prims', 'kruskal'].includes(algoKey)) {
+                transientEmojis.push({type: '✨', i: headCell.i, j: headCell.j, life: 5});
+            } else if (!['division', 'eller'].includes(algoKey)) {
+                if(lastGenHead && (Math.abs(headCell.i - lastGenHead.i) > 1 || Math.abs(headCell.j - lastGenHead.j) > 1)) {
+                    transientEmojis.push({type: '🛫', i: lastGenHead.i, j: lastGenHead.j, life: 5});
+                    transientEmojis.push({type: '🛬', i: headCell.i, j: headCell.j, life: 5});
+                } else if(lastGenHead) {
+                    if(headCell.i > lastGenHead.i) genMonkeyFaceRight = true;
+                    else if(headCell.i < lastGenHead.i) genMonkeyFaceRight = false;
+                }
+                genHead = headCell;
+                lastGenHead = headCell;
+            }
+        }
+
         if (speed >= 90) {
             let stepsPerFrame = (speed - 89) * 10; 
             if(stepCount++ % stepsPerFrame === 0) await Algo.sleep(0); 
@@ -373,6 +411,7 @@ async function generate() {
 
     isGenerating = false;
     genHead = null;
+    transientEmojis = [];
     applyEraser(); 
     
     ui.status.innerText = "Done";
@@ -380,14 +419,13 @@ async function generate() {
     ui.btnGen.classList.remove('active');
 }
 
-// Helper to determine if a vertex has >= 2 connections (to prevent 2x2 empty rooms)
 function getVertexDegree(vx, vy) {
-    if (vx <= 0 || vx >= grid.cols || vy <= 0 || vy >= grid.rows) return 99; // Outer bounds always solid
+    if (vx <= 0 || vx >= grid.cols || vy <= 0 || vy >= grid.rows) return 99; 
     let degree = 0;
-    if (grid.getCell(vx - 1, vy - 1).walls[1]) degree++; // Above
-    if (grid.getCell(vx - 1, vy).walls[1]) degree++;     // Below
-    if (grid.getCell(vx - 1, vy - 1).walls[2]) degree++; // Left
-    if (grid.getCell(vx, vy - 1).walls[2]) degree++;     // Right
+    if (grid.getCell(vx - 1, vy - 1).walls[1]) degree++; 
+    if (grid.getCell(vx - 1, vy).walls[1]) degree++;     
+    if (grid.getCell(vx - 1, vy - 1).walls[2]) degree++; 
+    if (grid.getCell(vx, vy - 1).walls[2]) degree++;     
     return degree;
 }
 
@@ -395,26 +433,18 @@ function applyEraser() {
     if(originalWalls.length === 0) return;
 
     grid.cells.forEach((c, idx) => c.walls = [...originalWalls[idx]]);
-    
     let percent = parseInt(ui.loops.value);
-    document.getElementById('lbl-loops').innerText = percent + "%";
     
     let targetRemoveCount = Math.floor(removableWallPool.length * (percent / 100));
     let removed = 0;
 
     for(let i = 0; i < removableWallPool.length && removed < targetRemoveCount; i++) {
         let p = removableWallPool[i];
-        
-        // Smart Check: Prevent creating freestanding pillars / empty rooms
         let safe = false;
-        if(p.w1 === 1) { // Vertical Wall
-            let topVX = p.c1.i + 1, topVY = p.c1.j;
-            let botVX = p.c1.i + 1, botVY = p.c1.j + 1;
-            if (getVertexDegree(topVX, topVY) > 1 && getVertexDegree(botVX, botVY) > 1) safe = true;
-        } else if (p.w1 === 2) { // Horizontal Wall
-            let leftVX = p.c1.i, leftVY = p.c1.j + 1;
-            let rightVX = p.c1.i + 1, rightVY = p.c1.j + 1;
-            if (getVertexDegree(leftVX, leftVY) > 1 && getVertexDegree(rightVX, rightVY) > 1) safe = true;
+        if(p.w1 === 1) { 
+            if (getVertexDegree(p.c1.i + 1, p.c1.j) > 1 && getVertexDegree(p.c1.i + 1, p.c1.j + 1) > 1) safe = true;
+        } else if (p.w1 === 2) { 
+            if (getVertexDegree(p.c1.i, p.c1.j + 1) > 1 && getVertexDegree(p.c1.i + 1, p.c1.j + 1) > 1) safe = true;
         }
 
         if (safe) {
@@ -450,6 +480,8 @@ const validateAndApplySize = () => {
     oldCols = c; oldRows = r;
 
     setupGrid();
+    if(ui.mode.value === 'draw') generateRandomPathTemplate();
+    draw();
 };
 
 ui.cols.addEventListener('change', () => {
@@ -468,61 +500,36 @@ ui.lock.addEventListener('click', () => {
     if(isRatioLocked) lockedRatio = parseInt(ui.cols.value) / parseInt(ui.rows.value);
 });
 
-const disableIncompatibleAlgos = (mode) => {
-    const forbidden = ['division', 'eller', 'sidewinder', 'binary'];
-    Array.from(ui.algo.options).forEach(opt => {
-        if(mode === 'draw') {
-            if(opt.value !== 'prims' && opt.value !== 'kruskal') {
-                opt.disabled = true;
-                opt.hidden = true;
-            } else {
-                opt.disabled = false;
-                opt.hidden = false;
-            }
-        } else {
-            opt.disabled = false;
-            opt.hidden = false;
-        }
-    });
-
-    if(mode === 'draw' && ui.algo.value !== 'prims' && ui.algo.value !== 'kruskal') {
-        ui.algo.value = 'prims'; 
-    }
-};
-
 function generateRandomPathTemplate() {
     customPathPoints = [];
     let r = Math.floor(grid.rows / 2);
-    let curr = {i: 0, j: r};
-    
-    // Start at left door
     customPathPoints.push({i: -1, j: r, isBoundary: true});
-    customPathPoints.push(curr);
     
+    let curr = grid.getCell(0, r);
     let visited = new Set([`0,${r}`]);
     
     while(curr.i < grid.cols - 1) {
+        customPathPoints.push(curr);
         let moves = [];
-        // Up/Down is 3x more likely than Right
-        if(curr.j > 0 && !visited.has(`${curr.i},${curr.j-1}`)) moves.push({i: curr.i, j: curr.j-1, weight: 3});
-        if(curr.j < grid.rows - 1 && !visited.has(`${curr.i},${curr.j+1}`)) moves.push({i: curr.i, j: curr.j+1, weight: 3});
-        if(!visited.has(`${curr.i+1},${curr.j}`)) moves.push({i: curr.i+1, j: curr.j, weight: 1});
+        if(curr.j > 0 && !visited.has(`${curr.i},${curr.j-1}`)) moves.push({c: grid.getCell(curr.i, curr.j-1), w: 3});
+        if(curr.j < grid.rows - 1 && !visited.has(`${curr.i},${curr.j+1}`)) moves.push({c: grid.getCell(curr.i, curr.j+1), w: 3});
+        if(!visited.has(`${curr.i+1},${curr.j}`)) moves.push({c: grid.getCell(curr.i+1, curr.j), w: 1});
 
         if(moves.length === 0) {
-            curr = {i: curr.i+1, j: curr.j};
+            curr = grid.getCell(curr.i+1, curr.j);
         } else {
-            let totalWeight = moves.reduce((s, m) => s + m.weight, 0);
+            let totalWeight = moves.reduce((s, m) => s + m.w, 0);
             let rnd = Math.random() * totalWeight;
             for(let m of moves) {
-                if(rnd < m.weight) { curr = {i: m.i, j: m.j}; break; }
-                rnd -= m.weight;
+                if(rnd < m.w) { curr = m.c; break; }
+                rnd -= m.w;
             }
         }
+        if(!curr) break;
         visited.add(`${curr.i},${curr.j}`);
-        customPathPoints.push(curr);
     }
-    // End at right door
-    customPathPoints.push({i: grid.cols, j: curr.j, isBoundary: true});
+    if(curr) customPathPoints.push(curr);
+    customPathPoints.push({i: grid.cols, j: curr ? curr.j : r, isBoundary: true});
 }
 
 let lastMode = 'none';
@@ -531,17 +538,19 @@ ui.mode.addEventListener('change', () => {
     
     if (val === 'draw') {
         ui.uiDraw.classList.remove('hidden');
-        disableIncompatibleAlgos('draw');
-        setupGrid(); 
+        ui.algo.value = 'kruskal';
+        ui.algo.disabled = true;
+        
         generateRandomPathTemplate();
         ui.btnClearPath.innerText = "🗑️ Clear Sample Path";
         ui.btnClearPath.classList.add('btn-primary');
         draw();
     } else {
         ui.uiDraw.classList.add('hidden');
-        disableIncompatibleAlgos('none');
+        ui.algo.disabled = false;
+        
         if (lastMode === 'draw') {
-            setupGrid(); // Must reset grid physically if leaving draw mode
+            setupGrid(); 
         } else {
             solveMaze();
             draw();
@@ -558,6 +567,7 @@ ui.btnClearPath.addEventListener('click', () => {
 });
 
 ui.output.round.addEventListener('change', draw);
+ui.output.simplify.addEventListener('change', draw);
 ui.loops.addEventListener('input', applyEraser);
 ui.btnGen.addEventListener('click', generate);
 ui.speed.addEventListener('input', (e) => { 
@@ -600,7 +610,6 @@ canvas.addEventListener('pointerdown', (e) => {
             if(!cell.isBoundary) cell.isCustomPath = true;
             draw();
         } else {
-            // STRICT: Must click exact head to continue drawing or undoing
             let head = customPathPoints[customPathPoints.length-1];
             if(cell.i === head.i && cell.j === head.j) {
                 isDrawingSnake = true;
@@ -646,6 +655,9 @@ canvas.addEventListener('pointermove', (e) => {
             customPathPoints.push(cell);
             if(!cell.isBoundary) cell.isCustomPath = true;
             if(!cell.isBoundary && !head.isBoundary) grid.removeWall(head, cell);
+            
+            ui.btnClearPath.innerText = "🗑️ Clear Custom Path";
+            ui.btnClearPath.classList.remove('btn-primary');
             draw();
         }
     }
@@ -708,96 +720,3 @@ function exportSVG() {
 
     let solutionPoly = "";
     let activePath = ui.mode.value === 'auto' ? solutionPath : (ui.mode.value === 'draw' ? customPathPoints : []);
-    
-    if(activePath.length > 0) {
-        let points = activePath.map(p => `${p.i*cellSize + cellSize/2},${p.j*cellSize + cellSize/2}`).join(" ");
-        solutionPoly = `<polyline points="${points}" stroke="red" stroke-width="${Math.max(2, cellSize/4)}" fill="none" stroke-linejoin="${joinStyle}" stroke-linecap="${capStyle}" opacity="0.8"/>`;
-    }
-
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}"><rect width="100%" height="100%" fill="white"/><g stroke="black" stroke-width="${Math.max(2, cellSize/10)}" stroke-linecap="${capStyle}" stroke-linejoin="${joinStyle}">${lines.join('\n')}</g>${solutionPoly}</svg>`;
-    download(`maze_${grid.cols}x${grid.rows}.svg`, svg, "image/svg+xml");
-}
-
-function exportPNG() {
-    const scale = 4;
-    const w = grid.cols * scale + 1;
-    const h = grid.rows * scale + 1;
-    
-    const oc = document.createElement('canvas');
-    oc.width = w; oc.height = h;
-    const offCtx = oc.getContext('2d');
-    
-    offCtx.fillStyle = "black";
-    offCtx.fillRect(0,0,w,h);
-    
-    offCtx.fillStyle = "white";
-    for(let c of grid.cells) {
-        let x = c.i * scale + 1;
-        let y = c.j * scale + 1;
-        offCtx.fillRect(x, y, 3, 3);
-        if(!c.walls[1] || isBoundaryOpen(c.i, c.j, 1)) offCtx.fillRect(x+3, y, 1, 3);
-        if(!c.walls[2] || isBoundaryOpen(c.i, c.j, 2)) offCtx.fillRect(x, y+3, 3, 1);
-        
-        if(isBoundaryOpen(c.i, c.j, 0)) offCtx.fillRect(x, y-1, 3, 1);
-        if(isBoundaryOpen(c.i, c.j, 3)) offCtx.fillRect(x-1, y, 1, 3);
-    }
-
-    let activePath = ui.mode.value === 'auto' ? solutionPath : (ui.mode.value === 'draw' ? customPathPoints : []);
-
-    if(activePath.length > 0) {
-        offCtx.fillStyle = "red";
-        for(let i=0; i<activePath.length; i++) {
-            let c = activePath[i];
-            let cx = c.i * scale + 2;
-            let cy = c.j * scale + 2;
-            if(c.isBoundary) {
-                if(c.i === -1) cx = 0;
-                else if(c.i === grid.cols) cx = w - 1;
-                else if(c.j === -1) cy = 0;
-                else if(c.j === grid.rows) cy = h - 1;
-            }
-            offCtx.fillRect(cx, cy, 1, 1);
-
-            if(i < activePath.length-1) {
-                let n = activePath[i+1];
-                let nx = n.i * scale + 2;
-                let ny = n.j * scale + 2;
-                if(n.isBoundary) {
-                    if(n.i === -1) nx = 0;
-                    else if(n.i === grid.cols) nx = w - 1;
-                    else if(n.j === -1) ny = 0;
-                    else if(n.j === grid.rows) ny = h - 1;
-                }
-                
-                if(cx < nx) offCtx.fillRect(cx, cy, (nx-cx)+1, 1);
-                else if(cx > nx) offCtx.fillRect(nx, ny, (cx-nx)+1, 1);
-                else if(cy < ny) offCtx.fillRect(cx, cy, 1, (ny-cy)+1);
-                else if(cy > ny) offCtx.fillRect(cx, ny, 1, (cy-ny)+1);
-            }
-        }
-    }
-
-    const a = document.createElement('a');
-    a.download = `maze_${grid.cols}x${grid.rows}.png`;
-    a.href = oc.toDataURL("image/png");
-    a.click();
-}
-
-function download(name, content, type) {
-    const blob = new Blob([content], {type: type});
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = name; a.click();
-}
-
-function showToast(msg) {
-    const d = document.createElement('div');
-    d.className = 'toast'; d.innerText = msg;
-    document.getElementById('toast-container').appendChild(d);
-    setTimeout(()=>d.remove(), 3000);
-}
-
-ui.output.svg.addEventListener('click', exportSVG);
-ui.output.png.addEventListener('click', exportPNG);
-
-init();
