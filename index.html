@@ -7,7 +7,7 @@
     <title>Maze Architect</title>
     <link rel="stylesheet" href="css/style.css">
     <style>
-        /* Prevents mobile scrolling while drawing on the canvas */
+        /* Vital for touch/pen drawing - stops mobile screen scrolling */
         #canvas { touch-action: none; cursor: crosshair; }
     </style>
 </head>
@@ -18,23 +18,22 @@
         <aside class="sidebar">
             <h1 class="brand">Maze Architect</h1>
             
-            <!-- Hero Section -->
             <div class="section hero">
                 <div class="row" style="align-items: center;">
                     <div class="col">
                         <label for="inp-cols">Columns (X)</label>
-                        <input type="number" id="inp-cols" value="20" min="2" max="200">
+                        <!-- Notice we removed max="200" from HTML to handle limits in JS -->
+                        <input type="number" id="inp-cols" value="20" min="2">
                     </div>
                     <button id="btn-lock-ratio" class="btn-icon" title="Lock Aspect Ratio">🔗</button>
                     <div class="col">
                         <label for="inp-rows">Rows (Y)</label>
-                        <input type="number" id="inp-rows" value="20" min="2" max="200">
+                        <input type="number" id="inp-rows" value="20" min="2">
                     </div>
                 </div>
                 
                 <button id="btn-generate" class="btn-primary">GENERATE MAZE</button>
                 
-                <!-- Speed Slider moved here -->
                 <div class="section" style="margin-top: 5px;">
                     <label for="inp-speed" style="display: flex; justify-content: space-between;">
                         <span>Generation Speed</span>
@@ -46,62 +45,65 @@
                 <div class="status-bar" id="status-text" style="margin-top: -5px;">Ready</div>
             </div>
 
-            <!-- Advanced Section -->
-            <details class="advanced-panel">
-                <summary>Advanced Configuration</summary>
-                
-                <div class="section" style="margin-top: 10px;">
-                    <label for="sel-algo">Algorithm</label>
-                    <select id="sel-algo">
-                        <option value="dfs" selected>Recursive Backtracker (River-like)</option>
-                        <option value="huntkill">Hunt & Kill (Winding)</option>
-                        <option value="prims">Randomized Prim's (Short branches)</option>
-                        <option value="kruskal">Randomized Kruskal's (Puzzle-like)</option>
-                        <option value="aldous">Aldous-Broder (Random Walk)</option>
-                        <option value="wilson">Wilson's (Loop-Erased)</option>
-                        <option value="division" class="incompatible">Recursive Division (Blocky)</option>
-                        <option value="eller" class="incompatible">Eller's (Infinite scroll)</option>
-                        <option value="sidewinder" class="incompatible">Sidewinder (Wind-swept)</option>
-                        <option value="binary" class="incompatible">Binary Tree (Diagonal bias)</option>
-                    </select>
-                </div>
+            <hr class="divider">
 
-                <hr class="divider">
+            <!-- Core Config -->
+            <div class="section">
+                <label for="sel-algo">Algorithm</label>
+                <select id="sel-algo">
+                    <option value="dfs" selected>Recursive Backtracker (River-like)</option>
+                    <option value="huntkill">Hunt & Kill (Winding)</option>
+                    <option value="prims">Randomized Prim's (Short branches)</option>
+                    <option value="kruskal">Randomized Kruskal's (Puzzle-like)</option>
+                    <option value="aldous">Aldous-Broder (Random Walk)</option>
+                    <option value="wilson">Wilson's (Loop-Erased)</option>
+                    <option value="division" class="incompatible">Recursive Division (Blocky)</option>
+                    <option value="eller" class="incompatible">Eller's (Infinite scroll)</option>
+                    <option value="sidewinder" class="incompatible">Sidewinder (Wind-swept)</option>
+                    <option value="binary" class="incompatible">Binary Tree (Diagonal bias)</option>
+                </select>
+            </div>
 
-                <div class="section tool-box">
-                    <label>Pre-Draw Custom Path</label>
-                    <div class="btn-group">
-                        <button id="btn-tool-pencil" class="btn-tool" title="Draw Path">✏️ Draw</button>
-                        <button id="btn-tool-clear" class="btn-tool" title="Clear Path">🗑️ Clear</button>
-                    </div>
-                    <p class="description warning hidden" id="path-warning">
-                        Drawing a path disables: Division, Eller's, Sidewinder, and Binary Tree.
-                    </p>
-                </div>
-
-                <hr class="divider">
-
-                <div class="section">
-                    <label for="inp-loops">Erase Walls (Create Loops)</label>
-                    <input type="range" id="inp-loops" min="0" max="50" value="0">
-                    <p class="description">Erases: <span id="lbl-loops">0%</span> of internal walls.</p>
-                </div>
-            </details>
+            <div class="section">
+                <label for="inp-loops">Erase Walls (Create Loops)</label>
+                <input type="range" id="inp-loops" min="0" max="50" value="0">
+                <p class="description">Erases: <span id="lbl-loops">0%</span> of internal walls.</p>
+            </div>
 
             <hr class="divider">
 
-            <!-- Solver and Export Section (Moved Outside Details) -->
+            <!-- Maze Modes -->
             <div class="section">
-                <div class="checkbox-row" style="margin: 5px 0;">
-                    <input type="checkbox" id="chk-solve"> 
-                    <label for="chk-solve" style="cursor:pointer; color: var(--primary); font-size: 1rem;">
-                        Solve Maze (Drag 🐒 & 🍌)
+                <label for="sel-mode" style="color: var(--primary); font-size: 1rem;">Maze Mode</label>
+                <select id="sel-mode" style="border-color: var(--primary);">
+                    <option value="none" selected>Standard (None)</option>
+                    <option value="auto">Automatic Solve (🐒 & 🍌)</option>
+                    <option value="draw">Draw Custom Path</option>
+                </select>
+            </div>
+
+            <!-- Draw UI (Hidden by default) -->
+            <div id="ui-draw" class="section hidden">
+                <p class="description" style="color:#aaa;">Click and drag from the start to snake a path. Drag backwards to undo.</p>
+                <button id="btn-tool-clear" class="btn-tool" style="width: 100%;">🗑️ Clear Custom Path</button>
+            </div>
+
+            <hr class="divider">
+
+            <!-- Export -->
+            <div class="section">
+                <label>Export Options</label>
+
+                <div class="checkbox-row" style="margin-bottom: 5px;">
+                    <input type="checkbox" id="chk-simplify" checked> 
+                    <label for="chk-simplify" style="cursor:pointer;" title="Combines straight walls into single lines. Best for Plotters.">
+                        Simplify SVG Paths
                     </label>
                 </div>
 
-                <div class="row" style="margin-top: 10px;">
+                <div class="row" style="margin-top: 5px;">
                     <div class="col">
-                        <label for="sel-join">Export Line Corners</label>
+                        <label for="sel-join">Export Line Style</label>
                         <select id="sel-join">
                             <option value="miter">Sharp (Miter)</option>
                             <option value="round" selected>Round</option>
