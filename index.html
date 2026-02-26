@@ -37,7 +37,12 @@
                         <span>Generation Speed</span>
                         <span id="lbl-speed" style="color: var(--primary);">Fast</span>
                     </label>
-                    <input type="range" id="inp-speed" min="1" max="100" value="90">
+                    <input type="range" id="inp-speed" min="0" max="100" value="90">
+                    
+                    <div class="checkbox-row" style="margin-top: 5px;">
+                        <input type="checkbox" id="chk-no-emoji"> 
+                        <label for="chk-no-emoji" style="cursor:pointer; color:#aaa;">Hide generation emojis</label>
+                    </div>
                 </div>
 
                 <div class="status-bar" id="status-text" style="margin-top: -5px;">Ready</div>
@@ -69,7 +74,7 @@
 
             <hr class="divider">
 
-            <!-- Maze Modes -->
+            <!-- Solver Modes -->
             <div class="section">
                 <label for="sel-mode" style="color: var(--primary); font-size: 1rem;">Solver Mode</label>
                 <select id="sel-mode" style="border-color: var(--primary);">
@@ -80,7 +85,7 @@
             </div>
 
             <div id="ui-draw" class="section hidden">
-                <p class="description" style="color:#aaa;">Click and drag backwards from the <strong>red arrowhead</strong> to adjust the path.</p>
+                <p class="description" style="color:#aaa;">Click and drag backwards from the <strong>green circle</strong> to adjust the path.</p>
                 <p class="description warning" id="draw-warning" style="margin-top: 5px;">Algorithm locked to Kruskal's for custom paths.</p>
                 <button id="btn-tool-clear" class="btn-tool" style="width: 100%; margin-top: 5px;">🗑️ Clear Sample Path</button>
             </div>

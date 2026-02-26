@@ -8,17 +8,18 @@ export async function algoDFS(grid, updateFn, checkPause) {
 
     while (stack.length > 0) {
         let current = stack[stack.length - 1];
-        await checkPause(current);
         let neighbors = grid.getUnvisitedNeighbors(current);
 
         if (neighbors.length > 0) {
             let next = neighbors[Math.floor(Math.random() * neighbors.length)];
+            await checkPause(next); 
             grid.removeWall(current, next);
             next.visited = true;
             stack.push(next);
             updateFn();
         } else {
             stack.pop();
+            await checkPause(current);
             updateFn();
         }
     }
@@ -44,7 +45,6 @@ export async function algoPrims(grid, updateFn, checkPause) {
     while (frontier.length > 0) {
         let randIdx = Math.floor(Math.random() * frontier.length);
         let cell = frontier[randIdx];
-        await checkPause(cell);
         frontier.splice(randIdx, 1);
 
         let ns = [ grid.getCell(cell.i, cell.j-1), grid.getCell(cell.i+1, cell.j), grid.getCell(cell.i, cell.j+1), grid.getCell(cell.i-1, cell.j) ];
@@ -52,6 +52,7 @@ export async function algoPrims(grid, updateFn, checkPause) {
         
         if (visitedNs.length > 0) {
             let neighbor = visitedNs[Math.floor(Math.random() * visitedNs.length)];
+            await checkPause(cell); // Only pause when actually carving
             grid.removeWall(cell, neighbor);
             cell.visited = true;
             let unvisited = grid.getUnvisitedNeighbors(cell);
@@ -67,10 +68,10 @@ export async function algoHuntKill(grid, updateFn, checkPause) {
     current.visited = true;
 
     while (current) {
-        await checkPause(current);
         let neighbors = grid.getUnvisitedNeighbors(current);
         if (neighbors.length > 0) {
             let next = neighbors[Math.floor(Math.random() * neighbors.length)];
+            await checkPause(next);
             grid.removeWall(current, next);
             next.visited = true;
             current = next;
@@ -83,6 +84,7 @@ export async function algoHuntKill(grid, updateFn, checkPause) {
                 let visitedNs = ns.filter(n => n && n.visited);
                 if (!cell.visited && visitedNs.length > 0) {
                     current = cell;
+                    await checkPause(current);
                     let neighbor = visitedNs[Math.floor(Math.random() * visitedNs.length)];
                     grid.removeWall(current, neighbor);
                     current.visited = true;
@@ -161,13 +163,17 @@ export async function algoKruskal(grid, updateFn, checkPause) {
     });
     edges.sort(() => Math.random() - 0.5);
 
+    let yieldCounter = 0;
     for (let e of edges) {
-        await checkPause(e.a);
         let idxA = grid.index(e.a.i, e.a.j);
         let idxB = grid.index(e.b.i, e.b.j);
         if (union(idxA, idxB)) {
+            await checkPause(e.a); // Only pause when actually carving
             grid.removeWall(e.a, e.b);
             updateFn();
+        } else {
+            // Keep browser responsive without spawning emojis
+            if(yieldCounter++ % 100 === 0) await checkPause(null);
         }
     }
 }
@@ -181,9 +187,10 @@ export async function algoAldous(grid, updateFn, checkPause) {
     if(pathCount > 0) unvisitedCount -= pathCount; 
 
     while (unvisitedCount > 0) {
-        await checkPause(current);
         let neighbors = [ grid.getCell(current.i, current.j-1), grid.getCell(current.i+1, current.j), grid.getCell(current.i, current.j+1), grid.getCell(current.i-1, current.j) ].filter(n => n !== null);
         let next = neighbors[Math.floor(Math.random() * neighbors.length)];
+        
+        await checkPause(next); // Pause on every step of the walk!
         
         if (!next.visited) {
             grid.removeWall(current, next);
@@ -210,10 +217,12 @@ export async function algoWilson(grid, updateFn, checkPause) {
         
         while(walking) {
             let curr = path[path.length-1];
-            await checkPause(curr);
             let neighbors = [ grid.getCell(curr.i, curr.j-1), grid.getCell(curr.i+1, curr.j), grid.getCell(curr.i, curr.j+1), grid.getCell(curr.i-1, curr.j) ].filter(n => n !== null);
             let next = neighbors[Math.floor(Math.random() * neighbors.length)];
             
+            await checkPause(next); // Show the monkey during the walk
+            updateFn(); // Redraw to update monkey position
+
             let index = path.indexOf(next);
             if (index !== -1) path.splice(index + 1); 
             else { path.push(next); if (next.visited) walking = false; }
@@ -222,7 +231,7 @@ export async function algoWilson(grid, updateFn, checkPause) {
         for(let i=0; i<path.length-1; i++) {
             let a = path[i];
             let b = path[i+1];
-            await checkPause(a);
+            await checkPause(a); // Carving path
             grid.removeWall(a, b);
             a.visited = true;
             if(unvisited.includes(a)) unvisited.splice(unvisited.indexOf(a), 1);

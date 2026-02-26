@@ -16,6 +16,7 @@ const ui = {
     mode: document.getElementById('sel-mode'),
     uiDraw: document.getElementById('ui-draw'),
     btnClearPath: document.getElementById('btn-tool-clear'),
+    hideEmoji: document.getElementById('chk-no-emoji'),
     output: { 
         svg: document.getElementById('btn-exp-svg'),
         png: document.getElementById('btn-exp-png'),
@@ -44,6 +45,18 @@ Grid.prototype.addWall = function(a, b) {
     if (y === 1) { a.walls[0] = true; b.walls[2] = true; }
     else if (y === -1) { a.walls[2] = true; b.walls[0] = true; }
 };
+
+function abortGeneration() {
+    if(!isGenerating) return;
+    currentGenId++; // Kills the async loop
+    isGenerating = false;
+    ui.status.innerText = "Ready";
+    ui.btnGen.innerText = "GENERATE MAZE";
+    ui.btnGen.classList.remove('active');
+    setupGrid();
+    if (ui.mode.value === 'draw') generateRandomPathTemplate();
+    draw();
+}
 
 function init() {
     resize();
@@ -89,7 +102,8 @@ function drawEmoji(emoji, x, y, size, faceRight = true, alpha = 1.0) {
     ctx.textBaseline = "middle";
     ctx.save();
     ctx.translate(x, y);
-    if (!faceRight) ctx.scale(-1, 1);
+    // Standard OS Monkey faces Left. Scale(-1) makes it face Right.
+    if (faceRight) ctx.scale(-1, 1);
     ctx.fillText(emoji, 0, 2);
     ctx.restore();
     ctx.globalAlpha = 1.0;
@@ -154,9 +168,9 @@ function draw() {
 
         if (ui.mode.value === 'draw' && customPathPoints.length > 0) {
             let last = customPathPoints[customPathPoints.length - 1];
-            ctx.fillStyle = "red";
+            ctx.fillStyle = "var(--primary)"; // Green Circle
             ctx.beginPath();
-            ctx.arc(offsetX + last.i*cellSize + cellSize/2, offsetY + last.j*cellSize + cellSize/2, cellSize/2, 0, Math.PI*2);
+            ctx.arc(offsetX + last.i*cellSize + cellSize/2, offsetY + last.j*cellSize + cellSize/2, cellSize/4, 0, Math.PI*2);
             ctx.fill();
         }
     }
@@ -169,19 +183,20 @@ function draw() {
             let firstHoriz = solutionPath.find((p, idx) => idx > 0 && p.i !== solutionPath[idx-1].i);
             if(firstHoriz) {
                 let prev = solutionPath[solutionPath.indexOf(firstHoriz) - 1];
-                monkeyFaceRight = firstHoriz.i > prev.i;
-            } else monkeyFaceRight = false; 
+                monkeyFaceRight = firstHoriz.i > prev.i; // Look toward travel dir
+            } else monkeyFaceRight = true; 
         }
         drawEmoji("🐒", offsetX + startCoords.i * cellSize + cellSize/2, offsetY + startCoords.j * cellSize + cellSize/2, eSize, monkeyFaceRight);
         drawEmoji("🍌", offsetX + goalCoords.i * cellSize + cellSize/2, offsetY + goalCoords.j * cellSize + cellSize/2, eSize, true);
     }
 
-    if (isGenerating && parseInt(ui.speed.value) < 100) {
+    if (isGenerating && !ui.hideEmoji.checked && parseInt(ui.speed.value) < 100) {
         transientEmojis.forEach(e => {
             let x = offsetX + e.i * cellSize + cellSize/2;
             let y = offsetY + e.j * cellSize + cellSize/2;
+            let alpha = Math.min(1.0, e.life / 5.0); // 10 to 6 is 1.0, 5 to 1 fades out
             let faceRight = (e.type === '🛬' || e.type === '✨') ? genMonkeyFaceRight : !genMonkeyFaceRight; 
-            drawEmoji(e.type, x, y, eSize, faceRight, e.life / 5.0);
+            drawEmoji(e.type, x, y, eSize, faceRight, alpha);
         });
         const algo = ui.algo.value;
         if (genHead && !genHead.isBoundary && !['prims', 'kruskal', 'division', 'eller'].includes(algo)) {
@@ -277,26 +292,39 @@ async function generate() {
     let stepCount = 0;
     const checkPause = async (headCell) => {
         if(myGenId !== currentGenId) throw "ABORT";
+        
+        while(parseInt(ui.speed.value) === 0) {
+            if(myGenId !== currentGenId) throw "ABORT";
+            ui.status.innerText = "Paused";
+            await Algo.sleep(100);
+        }
+        if(ui.status.innerText === "Paused") ui.status.innerText = "Generating...";
+
         let speed = parseInt(ui.speed.value);
         if (speed === 100) return; 
         
-        transientEmojis.forEach(e => e.life--);
-        transientEmojis = transientEmojis.filter(e => e.life > 0);
+        if(!ui.hideEmoji.checked) {
+            transientEmojis.forEach(e => e.life--);
+            transientEmojis = transientEmojis.filter(e => e.life > 0);
 
-        if(headCell) {
-            if (['prims', 'kruskal'].includes(algoKey)) {
-                transientEmojis.push({type: '✨', i: headCell.i, j: headCell.j, life: 5});
-            } else if (!['division', 'eller'].includes(algoKey)) {
-                if(lastGenHead && (Math.abs(headCell.i - lastGenHead.i) > 1 || Math.abs(headCell.j - lastGenHead.j) > 1)) {
-                    transientEmojis.push({type: '🛫', i: lastGenHead.i, j: lastGenHead.j, life: 5});
-                    transientEmojis.push({type: '🛬', i: headCell.i, j: headCell.j, life: 5});
-                } else if(lastGenHead) {
-                    if(headCell.i > lastGenHead.i) genMonkeyFaceRight = true;
-                    else if(headCell.i < lastGenHead.i) genMonkeyFaceRight = false;
+            if(headCell) {
+                if (['prims', 'kruskal'].includes(algoKey)) {
+                    transientEmojis.push({type: '✨', i: headCell.i, j: headCell.j, life: 10});
+                } else if (!['division', 'eller'].includes(algoKey)) {
+                    if(lastGenHead && (Math.abs(headCell.i - lastGenHead.i) > 1 || Math.abs(headCell.j - lastGenHead.j) > 1)) {
+                        transientEmojis.push({type: '🛫', i: lastGenHead.i, j: lastGenHead.j, life: 10});
+                        transientEmojis.push({type: '🛬', i: headCell.i, j: headCell.j, life: 10});
+                    } else if(lastGenHead) {
+                        if(headCell.i > lastGenHead.i) genMonkeyFaceRight = true;
+                        else if(headCell.i < lastGenHead.i) genMonkeyFaceRight = false;
+                    }
+                    genHead = headCell;
+                    lastGenHead = headCell;
                 }
-                genHead = headCell;
-                lastGenHead = headCell;
             }
+        } else {
+            genHead = null;
+            transientEmojis = [];
         }
 
         if (speed >= 90) {
@@ -369,9 +397,12 @@ const validateAndApplySize = () => {
     c = Math.min(c, 482); r = Math.min(r, 482);
     ui.cols.value = c; ui.rows.value = r; oldCols = c; oldRows = r;
 
-    setupGrid();
-    if(ui.mode.value === 'draw') generateRandomPathTemplate();
-    draw();
+    if(isGenerating) abortGeneration();
+    else {
+        setupGrid();
+        if(ui.mode.value === 'draw') generateRandomPathTemplate();
+        draw();
+    }
 };
 
 ui.cols.addEventListener('change', () => {
@@ -388,6 +419,10 @@ ui.lock.addEventListener('click', () => {
     isRatioLocked = !isRatioLocked;
     ui.lock.classList.toggle('active', isRatioLocked);
     if(isRatioLocked) lockedRatio = parseInt(ui.cols.value) / parseInt(ui.rows.value);
+});
+
+ui.algo.addEventListener('change', () => {
+    if (isGenerating) abortGeneration();
 });
 
 const disableIncompatibleAlgos = (mode) => {
@@ -429,12 +464,15 @@ function generateRandomPathTemplate() {
     customPathPoints.push({i: grid.cols, j: curr ? curr.j : r, isBoundary: true});
 }
 
-let lastMode = 'none';
 ui.mode.addEventListener('change', () => {
     const val = ui.mode.value;
+    if (isGenerating) abortGeneration();
+
     if (val === 'draw') {
         ui.uiDraw.classList.remove('hidden');
         disableIncompatibleAlgos('draw');
+        // Do not reset entire grid if we are switching, just overlay path.
+        // But since draw needs clear path, we setup new
         setupGrid(); 
         generateRandomPathTemplate();
         ui.btnClearPath.innerText = "🗑️ Clear Sample Path";
@@ -443,10 +481,9 @@ ui.mode.addEventListener('change', () => {
     } else {
         ui.uiDraw.classList.add('hidden');
         disableIncompatibleAlgos('none');
-        if (lastMode === 'draw') setupGrid(); 
-        else { solveMaze(); draw(); }
+        solveMaze();
+        draw();
     }
-    lastMode = val;
 });
 
 ui.btnClearPath.addEventListener('click', () => { 
@@ -460,7 +497,18 @@ ui.output.round.addEventListener('change', draw);
 ui.output.simplify.addEventListener('change', draw);
 ui.loops.addEventListener('input', applyEraser);
 ui.btnGen.addEventListener('click', generate);
-ui.speed.addEventListener('input', (e) => { document.getElementById('lbl-speed').innerText = e.target.value > 99 ? "Instant" : (e.target.value < 30 ? "Slow" : "Fast"); });
+
+ui.speed.addEventListener('input', (e) => { 
+    let v = parseInt(e.target.value);
+    if(v === 0) document.getElementById('lbl-speed').innerText = "Paused";
+    else if(v > 99) document.getElementById('lbl-speed').innerText = "Instant";
+    else if(v < 30) document.getElementById('lbl-speed').innerText = "Slow";
+    else document.getElementById('lbl-speed').innerText = "Fast";
+});
+
+ui.hideEmoji.addEventListener('change', draw); // Update live if paused
+
+// --- POINTER INTERACTION (SNAKE DRAWING & DRAG) ---
 
 function getPointerCell(e) {
     const r = canvas.getBoundingClientRect();
