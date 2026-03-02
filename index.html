@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🧩</text></svg>">
+    <title>Maze Architect</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            
+            <div class="section-header" style="font-size: 2rem; letter-spacing: 2px;">Maze Architect</div>
+            
+            <div class="section hero">
+                <div class="row" style="align-items: center;">
+                    <div class="col">
+                        <label for="inp-cols">Columns (X)</label>
+                        <input type="number" id="inp-cols" value="20" min="2">
+                    </div>
+                    <button id="btn-lock-ratio" class="btn-icon" title="Lock Aspect Ratio">🔗</button>
+                    <div class="col">
+                        <label for="inp-rows">Rows (Y)</label>
+                        <input type="number" id="inp-rows" value="20" min="2">
+                    </div>
+                </div>
+                
+                <button id="btn-generate" class="btn-primary">GENERATE MAZE</button>
+                
+                <div class="section" style="margin-top: 5px;">
+                    <label for="inp-speed" style="display: flex; justify-content: space-between;">
+                        <span>Maze generation speed</span>
+                        <span id="lbl-speed" style="color: var(--primary);">50</span>
+                    </label>
+                    <input type="range" id="inp-speed" min="0" max="100" step="any" value="50" list="tickmarks">
+                    <datalist id="tickmarks">
+                        <option value="0"></option>
+                        <option value="10"></option>
+                        <option value="90"></option>
+                        <option value="100"></option>
+                    </datalist>
+                </div>
+
+                <div class="status-row">
+                    <div class="status-bar">
+                        <span style="color: var(--primary); font-weight: bold;">Status:</span> 
+                        <span id="status-text">Ready</span>
+                    </div>
+                    <div class="checkbox-row" style="margin: 0;">
+                        <input type="checkbox" id="chk-emoji" checked> 
+                        <label for="chk-emoji" style="cursor:pointer; font-size: 1.2rem; margin-top:-2px;" title="Toggle Generation Emojis">🐒</label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Algorithm Wrapper -->
+            <div id="wrapper-algorithm">
+                <div class="section-header" style="margin-top: 15px; margin-bottom: 10px;">Maze generator algorithm</div>
+                <div class="section">
+                    <select id="sel-algo" style="border-color: var(--primary);">
+                        <option value="dfs" selected>Recursive Backtracker (River-like)</option>
+                        <option value="huntkill">Hunt & Kill (Winding)</option>
+                        <option value="prims">Randomized Prim's (Short branches)</option>
+                        <option value="kruskal">Randomized Kruskal's (Puzzle-like)</option>
+                        <option value="division">Recursive Division (Blocky)</option>
+                        <option value="eller">Eller's (Infinite scroll, fast 🚀)</option>
+                        <option value="sidewinder">Sidewinder (Wind-swept)</option>
+                        <option value="binary">Binary Tree (Diagonal bias)</option>
+                        <option value="wilson" class="slow-warn">Wilson's (Loop-Erased, slow 🐌)</option>
+                        <option value="aldous" class="slow-warn">Aldous-Broder (random walk, slow 💀)</option>
+                    </select>
+                </div>
+
+                <div class="section" style="margin-top: 10px;">
+                    <label for="inp-loops">Erase Walls (Create Loops)</label>
+                    <input type="range" id="inp-loops" min="0" max="50" value="0">
+                </div>
+            </div>
+
+            <!-- Solver Modes -->
+            <div class="section-header" style="margin-top: 15px; margin-bottom: 10px;">Maze solution</div>
+            <div class="section">
+                <select id="sel-mode" style="border-color: var(--primary);">
+                    <option value="none" selected>none</option>
+                    <option value="auto">automatic</option>
+                    <option value="draw">draw</option>
+                </select>
+            </div>
+
+            <div id="ui-draw" class="section hidden">
+                <p class="description" style="color:#000;">Click and drag from the <strong>blue circle</strong> to draw. Drag backwards to undo.</p>
+                <button id="btn-tool-clear" class="btn-outline btn-pulse" style="width: 100%; margin-top: 5px;">🗑️ Clear Sample Path</button>
+            </div>
+
+            <!-- Colors -->
+            <div class="section-header" style="margin-top: 15px; margin-bottom: 10px;">Colors</div>
+            <div class="section">
+                <div class="row">
+                    <div class="col color-picker-col">
+                        <label for="col-wall">Maze wall</label>
+                        <input type="color" id="col-wall" value="#000000">
+                    </div>
+                    <div class="col color-picker-col" id="wrap-col-path">
+                        <label for="col-path">Solution path</label>
+                        <input type="color" id="col-path" value="#ff0000">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Export -->
+            <div class="section-header" style="margin-top: 15px; margin-bottom: 10px;">Export Options</div>
+            <div class="section export-section">
+                <div class="checkbox-row" style="margin: 5px 0;">
+                    <input type="checkbox" id="chk-simplify" checked> 
+                    <label for="chk-simplify" style="cursor:pointer;" title="Combines straight walls into single lines. Best for Plotters.">
+                        Simplify SVG Paths
+                    </label>
+                </div>
+                
+                <div class="checkbox-row" style="margin-bottom: 5px;">
+                    <input type="checkbox" id="chk-round" checked> 
+                    <label for="chk-round" style="cursor:pointer;" title="Applies round corners to the solution line.">
+                        Round Path Ends & Corners
+                    </label>
+                </div>
+
+                <div class="checkbox-row hidden" id="wrap-exp-path" style="margin-bottom: 5px;">
+                    <input type="checkbox" id="chk-exp-path" checked> 
+                    <label for="chk-exp-path" style="cursor:pointer;" title="Include the solution path in the exported file.">
+                        Include solved path
+                    </label>
+                </div>
+                
+                <div class="export-buttons" style="margin-top: 10px;">
+                    <div class="top-row">
+                        <button id="btn-exp-svg" class="btn-outline">Download SVG</button>
+                        <button id="btn-exp-png-highres" class="btn-outline">Download PNG</button>
+                    </div>
+                    <div class="bottom-row">
+                        <button id="btn-exp-png-pixel" class="btn-outline">Download Pixel-Perfect PNG</button>
+                    </div>
+                </div>
+            </div>
+            
+            <div style="height: 20px;"></div> <!-- Bottom Padding -->
+
+        </aside>
+
+        <!-- Viewport -->
+        <main class="viewport" id="viewport">
+            <canvas id="canvas"></canvas>
+
+            <!-- Wiggling Arrows Layer -->
+            <div id="arrow-overlay" class="hidden">
+                <div class="wiggle-arrow arrow-up">⬆️</div>
+                <div class="wiggle-arrow arrow-down">⬇️</div>
+                <div class="wiggle-arrow arrow-left">⬅️</div>
+                <div class="wiggle-arrow arrow-right">➡️</div>
+            </div>
+
+            <div id="toast-container"></div>
+        </main>
+    </div>
+
+    <script type="module" src="js/main.js"></script>
+</body>
+</html>
