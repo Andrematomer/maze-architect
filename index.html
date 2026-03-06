@@ -13,7 +13,7 @@
         <!-- Sidebar -->
         <aside class="sidebar">
             
-            <div class="section-header" style="font-size: 2rem; letter-spacing: 2px;">Maze Architect</div>
+            <div class="brand-header">Maze Architect</div>
             
             <div class="section hero">
                 <div class="row" style="align-items: center;">
@@ -33,9 +33,9 @@
                 <div class="section" style="margin-top: 5px;">
                     <label for="inp-speed" style="display: flex; justify-content: space-between;">
                         <span>Maze generation speed</span>
-                        <span id="lbl-speed" style="color: var(--primary);">50</span>
+                        <span id="lbl-speed" style="color: var(--primary);">75</span>
                     </label>
-                    <input type="range" id="inp-speed" min="0" max="100" step="any" value="50" list="tickmarks">
+                    <input type="range" id="inp-speed" min="0" max="100" step="any" value="70" list="tickmarks">
                     <datalist id="tickmarks">
                         <option value="0"></option>
                         <option value="10"></option>
@@ -56,96 +56,161 @@
                 </div>
             </div>
 
-            <!-- Algorithm Wrapper -->
+            <!-- Algorithm -->
             <div id="wrapper-algorithm">
-                <div class="section-header" style="margin-top: 15px; margin-bottom: 10px;">Maze generator algorithm</div>
-                <div class="section">
-                    <select id="sel-algo" style="border-color: var(--primary);">
-                        <option value="dfs" selected>Recursive Backtracker (River-like)</option>
-                        <option value="huntkill">Hunt & Kill (Winding)</option>
-                        <option value="prims">Randomized Prim's (Short branches)</option>
-                        <option value="kruskal">Randomized Kruskal's (Puzzle-like)</option>
-                        <option value="division">Recursive Division (Blocky)</option>
-                        <option value="eller">Eller's (Infinite scroll, fast 🚀)</option>
-                        <option value="sidewinder">Sidewinder (Wind-swept)</option>
-                        <option value="binary">Binary Tree (Diagonal bias)</option>
-                        <option value="wilson" class="slow-warn">Wilson's (Loop-Erased, slow 🐌)</option>
-                        <option value="aldous" class="slow-warn">Aldous-Broder (random walk, slow 💀)</option>
-                    </select>
+                <details class="accordion" name="sidebar" open>
+                    <summary class="section-header">Maze generator algorithm</summary>
+                    <div class="accordion-content">
+                        <div class="section">
+                            <select id="sel-algo" style="border-color: var(--primary);">
+                                <option value="dfs" selected>Recursive Backtracker (River-like)</option>
+                                <option value="huntkill">Hunt & Kill (Winding)</option>
+                                <option value="prims">Randomized Prim's (Short branches)</option>
+                                <option value="kruskal">Randomized Kruskal's (Puzzle-like)</option>
+                                <option value="division">Recursive Division (Blocky)</option>
+                                <option value="eller">Eller's (Infinite scroll, fast 🚀)</option>
+                                <option value="sidewinder">Sidewinder (Wind-swept)</option>
+                                <option value="binary">Binary Tree (Diagonal bias)</option>
+                                <option value="wilson" class="slow-warn">Wilson's (Loop-Erased, slow 🐌)</option>
+                                <option value="aldous" class="slow-warn">Aldous-Broder (random walk, slow 💀)</option>
+                            </select>
+                        </div>
+                        <div class="section" style="margin-top: 10px;">
+                            <label for="inp-loops">Erase Walls (Create Loops)</label>
+                            <input type="range" id="inp-loops" min="0" max="50" value="0">
+                        </div>
+                    </div>
+                </details>
+            </div>
+
+            <!-- Solver Modes & Reference Image -->
+            <details class="accordion" name="sidebar">
+                <summary class="section-header">Maze solution</summary>
+                <div class="accordion-content">
+                    <div class="section">
+                        <select id="sel-mode" style="border-color: var(--primary);">
+                            <option value="none" selected>none</option>
+                            <option value="auto">automatic</option>
+                            <option value="draw">draw</option>
+                        </select>
+                    </div>
+
+                    <div id="ui-auto" class="section hidden">
+                         <p class="description" style="color:#000;">Drag the 🐒 and 🍌 to set start and end points.</p>
+                    </div>
+
+                    <div id="ui-draw" class="section hidden">
+                        <p class="description" style="color:var(--primary); font-weight:bold; margin-bottom: 5px;">Algorithm locked to Randomized Kruskal's.</p>
+                        <ul class="description" style="color:#000; padding-left: 20px; margin: 0 0 5px 0;">
+                            <li>Click and drag 🔵 to modify existing path</li>
+                            <li>Drag 🔵 backwards to undo</li>
+                            <li>Click drag from anywhere if no path exists</li>
+                            <li>Regenerate maze after drawing</li>
+                        </ul>
+                        <button id="btn-tool-clear" class="btn-outline btn-pulse" style="width: 100%; margin-top: 5px;">🗑️ Clear Sample Path</button>
+                    </div>
+
+                    <!-- Reference Image UI -->
+                    <div class="section hidden" id="ui-ref-image" style="margin-top: 10px;">
+                        <input type="file" id="inp-ref-img" accept="image/*" class="hidden">
+                        <div class="row" style="gap: 5px;">
+                            <button id="btn-ref-img" class="btn-outline" style="flex: 2; padding: 10px 5px; font-size: 0.8rem;">Load Ref Image</button>
+                            <select id="sel-ref-fit" style="flex: 1; padding: 8px 5px; font-size: 0.8rem;">
+                                <option value="fill">Fill</option>
+                                <option value="fit" selected>Fit</option>
+                                <option value="stretch">Stretch</option>
+                            </select>
+                            <select id="sel-ref-target" style="flex: 1; padding: 8px 5px; font-size: 0.8rem;">
+                                <option value="canvas">Canvas</option>
+                                <option value="maze" selected>Maze</option>
+                            </select>
+                        </div>
+                    </div>
                 </div>
+            </details>
 
-                <div class="section" style="margin-top: 10px;">
-                    <label for="inp-loops">Erase Walls (Create Loops)</label>
-                    <input type="range" id="inp-loops" min="0" max="50" value="0">
-                </div>
-            </div>
-
-            <!-- Solver Modes -->
-            <div class="section-header" style="margin-top: 15px; margin-bottom: 10px;">Maze solution</div>
-            <div class="section">
-                <select id="sel-mode" style="border-color: var(--primary);">
-                    <option value="none" selected>none</option>
-                    <option value="auto">automatic</option>
-                    <option value="draw">draw</option>
-                </select>
-            </div>
-
-            <div id="ui-draw" class="section hidden">
-                <p class="description" style="color:#000;">Click and drag from the <strong>blue circle</strong> to draw. Drag backwards to undo.</p>
-                <button id="btn-tool-clear" class="btn-outline btn-pulse" style="width: 100%; margin-top: 5px;">🗑️ Clear Sample Path</button>
-            </div>
-
-            <!-- Colors -->
-            <div class="section-header" style="margin-top: 15px; margin-bottom: 10px;">Colors</div>
-            <div class="section">
-                <div class="row">
-                    <div class="col color-picker-col">
-                        <label for="col-wall">Maze wall</label>
+            <!-- Appearance -->
+            <details class="accordion" name="sidebar">
+                <summary class="section-header">Maze appearance</summary>
+                <div class="accordion-content">
+                    <div class="appearance-grid">
+                        <label>Visible</label>
+                        <label>Color</label>
+                        <label>Thickness</label>
+                        <label>Rounded</label>
+                        
+                        <input type="checkbox" id="chk-vis-wall" checked>
                         <input type="color" id="col-wall" value="#000000">
-                    </div>
-                    <div class="col color-picker-col" id="wrap-col-path">
-                        <label for="col-path">Solution path</label>
-                        <input type="color" id="col-path" value="#ff0000">
+                        <input type="range" id="inp-thick-wall" min="1" max="100" value="10">
+                        <input type="checkbox" id="chk-round-wall" checked>
                     </div>
                 </div>
+            </details>
+
+            <!-- Solution Path Appearance -->
+            <div id="wrap-path-appearance">
+                <details class="accordion" name="sidebar">
+                    <summary class="section-header">Solution path appearance</summary>
+                    <div class="accordion-content">
+                        <div class="appearance-grid">
+                            <label>Visible</label>
+                            <label>Color</label>
+                            <label>Thickness</label>
+                            <label>Rounded</label>
+                            
+                            <input type="checkbox" id="chk-vis-path" checked>
+                            <input type="color" id="col-path" value="#ff0000">
+                            <input type="range" id="inp-thick-path" min="1" max="100" value="25">
+                            <input type="checkbox" id="chk-round-path" checked>
+                        </div>
+
+                        <div class="row" style="margin-top: 15px; align-items: center;">
+                            <label for="sel-routing" style="white-space: nowrap;">Solution path routing</label>
+                            <select id="sel-routing">
+                                <option value="grid" selected>Grid</option>
+                                <option value="smooth">Smooth turn</option>
+                                <option value="8dir">8 Directions</option>
+                                <option value="natural">Natural</option>
+                                <option value="string">String pull</option>
+                            </select>
+                        </div>
+                    </div>
+                </details>
             </div>
 
             <!-- Export -->
-            <div class="section-header" style="margin-top: 15px; margin-bottom: 10px;">Export Options</div>
-            <div class="section export-section">
-                <div class="checkbox-row" style="margin: 5px 0;">
-                    <input type="checkbox" id="chk-simplify" checked> 
-                    <label for="chk-simplify" style="cursor:pointer;" title="Combines straight walls into single lines. Best for Plotters.">
-                        Simplify SVG Paths
-                    </label>
-                </div>
-                
-                <div class="checkbox-row" style="margin-bottom: 5px;">
-                    <input type="checkbox" id="chk-round" checked> 
-                    <label for="chk-round" style="cursor:pointer;" title="Applies round corners to the solution line.">
-                        Round Path Ends & Corners
-                    </label>
-                </div>
+            <details class="accordion" name="sidebar">
+                <summary class="section-header">Export Options</summary>
+                <div class="accordion-content">
+                    
+                    <div class="checkbox-row" style="margin-bottom: 5px;">
+                        <input type="checkbox" id="chk-simplify" checked> 
+                        <label for="chk-simplify" style="cursor:pointer;" title="Combines straight walls into single lines. Best for Plotters.">
+                            Simplify SVG Paths
+                        </label>
+                    </div>
 
-                <div class="checkbox-row hidden" id="wrap-exp-path" style="margin-bottom: 5px;">
-                    <input type="checkbox" id="chk-exp-path" checked> 
-                    <label for="chk-exp-path" style="cursor:pointer;" title="Include the solution path in the exported file.">
-                        Include solved path
-                    </label>
-                </div>
-                
-                <div class="export-buttons" style="margin-top: 10px;">
-                    <div class="top-row">
-                        <button id="btn-exp-svg" class="btn-outline">Download SVG</button>
-                        <button id="btn-exp-png-highres" class="btn-outline">Download PNG</button>
+                    <div class="checkbox-row" style="margin-bottom: 10px;">
+                        <input type="checkbox" id="chk-transparent-bg"> 
+                        <label for="chk-transparent-bg" style="cursor:pointer;">
+                            Transparent background
+                        </label>
                     </div>
-                    <div class="bottom-row">
-                        <button id="btn-exp-png-pixel" class="btn-outline">Download Pixel-Perfect PNG</button>
+
+                    <div class="export-buttons">
+                        <div class="top-row">
+                            <button id="btn-exp-svg" class="btn-outline">Download SVG</button>
+                            <button id="btn-exp-png-highres" class="btn-outline">Download PNG</button>
+                        </div>
+                        <div class="bottom-row" style="flex-direction: column; gap: 5px;">
+                            <button id="btn-exp-png-pixel" class="btn-outline">Download Pixel-Perfect PNG</button>
+                            <p class="description" style="text-align: center; font-size: 0.65rem;">*Appearance settings (thickness/routing/corners) do not apply to Pixel-Perfect exports. Only colors are applied.</p>
+                        </div>
                     </div>
                 </div>
-            </div>
+            </details>
             
-            <div style="height: 20px;"></div> <!-- Bottom Padding -->
+            <div style="height: 20px;"></div>
 
         </aside>
 
@@ -153,7 +218,7 @@
         <main class="viewport" id="viewport">
             <canvas id="canvas"></canvas>
 
-            <!-- Wiggling Arrows Layer -->
+            <!-- DOM Layer for Wiggling Arrows -->
             <div id="arrow-overlay" class="hidden">
                 <div class="wiggle-arrow arrow-up">⬆️</div>
                 <div class="wiggle-arrow arrow-down">⬇️</div>
@@ -161,7 +226,21 @@
                 <div class="wiggle-arrow arrow-right">➡️</div>
             </div>
 
-            <div id="toast-container"></div>
+            <!-- DOM Layer for Emoji Arrows (Auto Solve) -->
+            <div id="start-arrow-overlay" class="hidden">
+                <div class="wiggle-arrow e-arrow-up">⬆️</div>
+                <div class="wiggle-arrow e-arrow-down">⬇️</div>
+                <div class="wiggle-arrow e-arrow-left">⬅️</div>
+                <div class="wiggle-arrow e-arrow-right">➡️</div>
+            </div>
+
+            <div id="goal-arrow-overlay" class="hidden">
+                <div class="wiggle-arrow e-arrow-up">⬆️</div>
+                <div class="wiggle-arrow e-arrow-down">⬇️</div>
+                <div class="wiggle-arrow e-arrow-left">⬅️</div>
+                <div class="wiggle-arrow e-arrow-right">➡️</div>
+            </div>
+
         </main>
     </div>
 

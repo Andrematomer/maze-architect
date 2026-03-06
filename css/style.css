@@ -28,7 +28,7 @@ body {
 .app-container { display: flex; height: 100%; width: 100%; }
 
 .sidebar {
-    width: 320px;
+    width: 330px; 
     background-color: var(--bg-panel);
     border-right: 1px solid var(--border);
     display: flex;
@@ -41,18 +41,53 @@ body {
     z-index: 10;
 }
 
-.section-header {
+/* Brand Header & Section Headers */
+.brand-header, summary.section-header {
     background-color: var(--primary);
     color: white;
-    text-align: center;
-    padding: 10px 20px;
-    margin: 5px -20px 0 -20px; 
-    font-size: 0.95rem;
     font-weight: bold;
     text-transform: uppercase;
     letter-spacing: 1px;
 }
-.sidebar > .section-header:first-child { margin-top: -20px; }
+.brand-header {
+    text-align: center;
+    font-size: 2rem;
+    letter-spacing: 2px;
+    margin: -20px -20px 0 -20px;
+    padding: 15px 20px;
+}
+
+/* Native Accordion Styling */
+details.accordion { margin: 0 -20px; }
+
+summary.section-header {
+    padding: 10px 40px;
+    font-size: 0.95rem;
+    cursor: pointer;
+    list-style: none; 
+    position: relative;
+    user-select: none;
+    transition: background-color 0.2s;
+    text-align: center; 
+}
+summary.section-header::-webkit-details-marker { display: none; }
+summary.section-header:hover { background-color: var(--primary-hover); }
+summary.section-header::after {
+    content: '▼';
+    position: absolute;
+    right: 20px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 0.8rem;
+}
+details.accordion[open] > summary.section-header::after { content: '▲'; }
+
+.accordion-content {
+    padding: 15px 20px 5px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
 
 label { 
     font-size: 0.85rem; 
@@ -69,6 +104,26 @@ label {
 .row { display: flex; gap: 10px; width: 100%; }
 .col { flex: 1; display: flex; flex-direction: column; gap: 5px; }
 .checkbox-row { display: flex; align-items: center; gap: 8px; }
+
+/* Appearance 4-Column Grid */
+.appearance-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 2fr 1fr;
+    gap: 10px;
+    align-items: center;
+    text-align: center;
+}
+.appearance-grid label {
+    font-size: 0.65rem; 
+    white-space: nowrap;
+}
+.appearance-grid input[type="checkbox"] {
+    margin: 0 auto;
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+    accent-color: var(--primary);
+}
 
 input[type="number"], select {
     background: var(--bg-input);
@@ -91,10 +146,12 @@ input[type="number"]:focus, select:focus {
 
 select option.slow-warn { color: var(--danger); font-weight: bold; }
 
-.color-picker-col input[type="color"] {
-    width: 100%;
-    height: 38px;
+/* Color Pickers */
+.appearance-grid input[type="color"] {
+    width: 50px;
+    height: 28px; 
     padding: 2px;
+    margin: 0 auto; 
     border: 1px solid var(--border);
     border-radius: 4px;
     cursor: pointer;
@@ -186,11 +243,12 @@ button:active { transform: translateY(1px); }
     color: white !important;
 }
 
-/* Wiggling Arrows Layer - Synchronized Breathing effect */
-#arrow-overlay {
+/* Wiggling Arrows Layer */
+#arrow-overlay, #start-arrow-overlay, #goal-arrow-overlay {
     position: absolute;
     pointer-events: none; 
     top: 0; left: 0; width: 100%; height: 100%;
+    z-index: 10;
 }
 .wiggle-arrow {
     position: absolute;
@@ -203,11 +261,10 @@ button:active { transform: translateY(1px); }
 @keyframes breathe-left { 0%, 100% { transform: translate(calc(-50% - 2px), -50%); } 50% { transform: translate(calc(-50% - 12px), -50%); } }
 @keyframes breathe-right { 0%, 100% { transform: translate(calc(-50% + 2px), -50%); } 50% { transform: translate(calc(-50% + 12px), -50%); } }
 
-.arrow-up { animation: breathe-up 1s ease-in-out infinite; }
-.arrow-down { animation: breathe-down 1s ease-in-out infinite; } 
-.arrow-left { animation: breathe-left 1s ease-in-out infinite; }
-.arrow-right { animation: breathe-right 1s ease-in-out infinite; }
-
+.arrow-up, .e-arrow-up { animation: breathe-up 1s ease-in-out infinite; }
+.arrow-down, .e-arrow-down { animation: breathe-down 1s ease-in-out infinite; } 
+.arrow-left, .e-arrow-left { animation: breathe-left 1s ease-in-out infinite; }
+.arrow-right, .e-arrow-right { animation: breathe-right 1s ease-in-out infinite; }
 
 .viewport {
     flex-grow: 1;
@@ -231,6 +288,7 @@ button:active { transform: translateY(1px); }
     touch-action: none;
     cursor: crosshair;
     box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+    z-index: 1;
 }
 
 #toast-container {
