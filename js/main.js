@@ -112,6 +112,7 @@ document.addEventListener('DOMContentLoaded', () => {
         grid.cells.forEach(c => {
             c.visited = false;
             c.walls = [true,true,true,true];
+            c.isCustomPath = false; // CRITICAL FIX: Erase memory of old custom paths
         });
         originalWalls = [];
         removableWallPool = [];
@@ -528,10 +529,9 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             ctx.stroke();
 
-            // Draw mode Blue Head - Fixed Scaling Logic
+            // Draw mode Blue Head
             if (ui.mode.value === 'draw' && customPathPoints.length > 0) {
                 ctx.fillStyle = "#0056b3"; 
-                // Enforce minimum 14px size so it never becomes microscopic
                 let headSize = Math.max(14, cellSize * 0.8);
                 ctx.font = `${headSize}px Arial`;
                 ctx.textAlign = "center";
@@ -543,8 +543,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         updateArrowOverlay();
 
-        // 6. Draw Emojis
+        // 6. Draw Emojis (ABSOLUTE LAST LAYER)
         let eSize = Math.max(12, cellSize * 0.7);
+
         ctx.globalAlpha = 1.0; 
 
         if (ui.mode.value === 'auto' && !isGenerating) {
@@ -683,8 +684,14 @@ document.addEventListener('DOMContentLoaded', () => {
         ui.btnGen.innerText = "ABORT";
         ui.btnGen.classList.add('btn-danger'); 
         
+        // CRITICAL FIX: CLEAR OLD CUSTOM PATH FLAGS FIRST!
+        grid.cells.forEach(c => { 
+            c.visited = false; 
+            c.walls = [true,true,true,true]; 
+            c.isCustomPath = false; 
+        });
+
         let oldPath = [...customPathPoints];
-        grid.cells.forEach(c => { c.visited = false; c.walls = [true,true,true,true]; });
 
         if(ui.mode.value === 'draw' && oldPath.length > 0) {
             let mappedPath = [];
@@ -791,8 +798,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (safe) { p.c1.walls[p.w1] = false; p.c2.walls[p.w2] = false; removed++; }
         }
-        if(!isGenerating) solveMaze();
-        draw();
+        if(!isGenerating) {
+            solveMaze();
+            draw();
+        }
     }
 
     const validateAndApplySize = () => {
@@ -923,7 +932,7 @@ document.addEventListener('DOMContentLoaded', () => {
             ui.ref.wrap.classList.add('hidden');
             ui.uiAuto.classList.remove('hidden');
             disableIncompatibleAlgos('none');
-            if(lastMode === 'draw') setupGrid(); 
+            if (lastMode === 'draw') setupGrid(); 
             else { solveMaze(); draw(); }
         } else {
             ui.uiDraw.classList.add('hidden');
@@ -946,7 +955,6 @@ document.addEventListener('DOMContentLoaded', () => {
         hasDrawnSuccessfully = true; 
         updateExportPathVisibility();
         resetMazeState();
-        draw();
     });
 
     ui.loops.addEventListener('input', applyEraser);
@@ -955,6 +963,8 @@ document.addEventListener('DOMContentLoaded', () => {
         else generate();
     });
     ui.hideEmoji.addEventListener('change', draw); 
+
+    // --- POINTER INTERACTION ---
 
     function getPointerCell(e) {
         const r = canvas.getBoundingClientRect();
@@ -1024,6 +1034,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if((Math.abs(cell.i - head.i) + Math.abs(cell.j - head.j)) === 1) {
                 
+                // Undo logic
                 if(customPathPoints.length > 1 && cell.i === customPathPoints[customPathPoints.length-2].i && cell.j === customPathPoints[customPathPoints.length-2].j) {
                     let p = customPathPoints.pop(), n = customPathPoints[customPathPoints.length-1];
                     if(!p.isBoundary) p.isCustomPath = false;
@@ -1114,7 +1125,7 @@ document.addEventListener('DOMContentLoaded', () => {
         let activePath = ui.mode.value === 'auto' ? solutionPath : (ui.mode.value === 'draw' ? customPathPoints : []);
         let poly = "";
         
-        if (activePath.length > 0 && ui.visPath.checked && ui.output.expPath.checked) {
+        if (activePath.length > 0 && ui.visPath.checked) {
             let pts = getRoutedPath(activePath);
             const pathWeight = parseInt(ui.thickPath.value) / 25;
             const pRound = ui.roundPath.checked;
@@ -1224,7 +1235,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         let pth = ui.mode.value === 'auto' ? solutionPath : (ui.mode.value === 'draw' ? customPathPoints : []);
-        if(pth.length > 0 && ui.visPath.checked && ui.output.expPath.checked) {
+        if(pth.length > 0 && ui.visPath.checked) {
             ctx.fillStyle = ui.colPath.value;
             for(let i=0; i<pth.length; i++) {
                 let cx = (pth[i].i+1) * s + 2, cy = (pth[i].j+1) * s + 2;
