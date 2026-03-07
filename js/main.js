@@ -815,11 +815,11 @@ document.addEventListener('DOMContentLoaded', () => {
                      '⚠️ Warning ⚠️\n\n' +
                      'Large grids may not display correctly in your browser.\n' +
                      'You can still generate and export the maze if your system can handle it, but this may take time.\n\n' +
-                     'To proceed, type: "I accept any damages are my responsibility."\n' +
+                     'To proceed, type: "I accept any damages are my responsibility"\n' +
                      'If you’re unsure, press Cancel instead.'
                  );
 
-                 if (confirmation && confirmation.toLowerCase() === "i accept any damages are my responsibility.") {
+                 if (confirmation && confirmation.toLowerCase() === "i accept any damages are my responsibility") {
                      isSizeLimitUnlocked = true;
                  } else {
                      ui.cols.value = oldCols;
@@ -1255,5 +1255,6 @@ document.addEventListener('DOMContentLoaded', () => {
     ui.output.pngPixel.addEventListener('click', exportPNGPixel);
 
     init();
+
 
 });
