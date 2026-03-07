@@ -819,9 +819,20 @@ document.addEventListener('DOMContentLoaded', () => {
                      'If you’re unsure, press Cancel instead.'
                  );
 
-                 if (confirmation && confirmation.toLowerCase() === "i accept any damages are my responsibility") {
-                     isSizeLimitUnlocked = true;
+                 if (confirmation !== null) {
+                     // Clean input: lowercase, remove edge spaces, remove trailing periods
+                     let cleanInput = confirmation.toLowerCase().trim().replace(/\.$/, '');
+                     
+                     if (cleanInput === "i accept any damages are my responsibility") {
+                         isSizeLimitUnlocked = true;
+                     } else {
+                         alert("Incorrect phrase entered. Grid size has been reverted to safe limits.");
+                         ui.cols.value = oldCols;
+                         ui.rows.value = oldRows;
+                         return;
+                     }
                  } else {
+                     // User pressed Cancel
                      ui.cols.value = oldCols;
                      ui.rows.value = oldRows;
                      return;
@@ -1255,6 +1266,5 @@ document.addEventListener('DOMContentLoaded', () => {
     ui.output.pngPixel.addEventListener('click', exportPNGPixel);
 
     init();
-
 
 });
