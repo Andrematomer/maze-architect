@@ -18,7 +18,7 @@
   <table>
     <tr>
       <td>
-        <img src="Assets/path_routing_half_res.gif" alt="Title" width="500">
+        <img src="Assets/path_routing_half_res.gif" alt="Title" width="200">
       </td>
       <td>
         <ul>
